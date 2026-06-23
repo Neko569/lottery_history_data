@@ -557,7 +557,7 @@ export default function MatchResultPage() {
                       </div>
                       <div>
                         <p className="text-xs text-zinc-500">最高奖项</p>
-                        <p className={cn("text-xl font-bold", bestPrize && PRIZE_COLORS[bestPrize]?.text || "text-yellow-600")}>
+                        <p className="text-xl font-bold text-zinc-900">
                           {bestPrize || "-"}
                         </p>
                       </div>
