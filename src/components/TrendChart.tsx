@@ -58,7 +58,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
     <div className="card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="font-serif text-base font-bold text-zinc-100">
+          <h3 className="font-serif text-base font-bold text-zinc-900">
             号码走势
           </h3>
           <span className="text-xs text-zinc-500">
@@ -119,12 +119,12 @@ export default function TrendChart({ type, data }: TrendChartProps) {
               data={chartData}
               margin={{ top: 8, right: 12, left: -8, bottom: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#24242F" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" />
               <XAxis
                 dataKey="term"
                 tick={{ fill: "#71717a", fontSize: 11, fontFamily: "JetBrains Mono" }}
                 tickLine={false}
-                axisLine={{ stroke: "#33333F" }}
+                axisLine={{ stroke: "#D1D1D8" }}
                 interval="preserveStartEnd"
                 minTickGap={20}
               />
@@ -132,18 +132,19 @@ export default function TrendChart({ type, data }: TrendChartProps) {
                 domain={[1, max]}
                 tick={{ fill: "#71717a", fontSize: 11, fontFamily: "JetBrains Mono" }}
                 tickLine={false}
-                axisLine={{ stroke: "#33333F" }}
+                axisLine={{ stroke: "#D1D1D8" }}
                 width={32}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#131319",
-                  border: "1px solid #33333F",
+                  backgroundColor: "#FFFFFF",
+                  border: "1px solid #E5E5EA",
                   borderRadius: 12,
                   fontSize: 12,
+                  boxShadow: "0 8px 24px -8px rgba(0,0,0,0.15)",
                 }}
-                labelStyle={{ color: "#D4AF37", fontFamily: "JetBrains Mono" }}
-                itemStyle={{ color: "#e8e8ee" }}
+                labelStyle={{ color: "#B8932B", fontFamily: "JetBrains Mono" }}
+                itemStyle={{ color: "#27272a" }}
               />
               <Legend
                 wrapperStyle={{ fontSize: 12, paddingTop: 8 }}

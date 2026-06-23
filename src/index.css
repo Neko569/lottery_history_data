@@ -11,7 +11,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -22,16 +22,16 @@ body,
 
 body {
   margin: 0;
-  background-color: #08080b;
-  color: #e8e8ee;
+  background-color: #ffffff;
+  color: #27272a;
 }
 
-/* 背景氛围：墨色渐变 + 微妙噪点 */
+/* 背景氛围：白色 + 微妙彩色光晕 */
 #root {
-  background-color: #0e0e12;
+  background-color: #ffffff;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(230, 57, 70, 0.12), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(212, 175, 55, 0.06), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(230, 57, 70, 0.10), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(212, 175, 55, 0.08), transparent 55%),
     radial-gradient(ellipse 50% 40% at 0% 100%, rgba(58, 134, 255, 0.06), transparent 55%);
   background-attachment: fixed;
 }
@@ -42,20 +42,20 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0e0e12;
+  background: #f4f4f7;
 }
 ::-webkit-scrollbar-thumb {
-  background: #33333f;
+  background: #d1d1d8;
   border-radius: 999px;
-  border: 2px solid #0e0e12;
+  border: 2px solid #f4f4f7;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a57;
+  background: #a1a1aa;
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-ink-700/70 bg-ink-850/80 backdrop-blur-sm;
+    @apply rounded-2xl border border-ink-700 bg-white shadow-sm;
   }
 
   .btn {
@@ -65,17 +65,17 @@ body {
     @apply btn bg-crimson text-white shadow-glow hover:bg-crimson-600 active:scale-95;
   }
   .btn-ghost {
-    @apply btn border border-ink-600 bg-ink-800/60 text-zinc-200 hover:border-crimson/60 hover:text-white;
+    @apply btn border border-ink-600 bg-ink-800/60 text-zinc-700 hover:border-crimson/60 hover:text-zinc-900;
   }
   .btn-gold {
-    @apply btn bg-gold text-ink-950 hover:bg-gold-300 active:scale-95;
+    @apply btn bg-gold text-zinc-900 hover:bg-gold-300 active:scale-95;
   }
 
   .seg {
-    @apply inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-900/80 p-1;
+    @apply inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-800/60 p-1;
   }
   .seg-item {
-    @apply rounded-full px-3 py-1.5 text-sm font-medium text-zinc-400 transition-all duration-200 hover:text-white;
+    @apply rounded-full px-3 py-1.5 text-sm font-medium text-zinc-500 transition-all duration-200 hover:text-zinc-900;
   }
   .seg-item-active {
     @apply bg-crimson text-white shadow-glow;
@@ -84,7 +84,7 @@ body {
 
 /* 骨架屏 shimmer */
 .skeleton {
-  background: linear-gradient(90deg, #1a1a22 25%, #24242f 37%, #1a1a22 63%);
+  background: linear-gradient(90deg, #f4f4f7 25%, #e5e5ea 37%, #f4f4f7 63%);
   background-size: 400% 100%;
   @apply animate-shimmer;
 }

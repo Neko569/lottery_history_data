@@ -28,7 +28,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shuffle className="h-4 w-4 text-gold" />
-          <h3 className="font-serif text-base font-bold text-zinc-100">
+          <h3 className="font-serif text-base font-bold text-zinc-900">
             随机生成
           </h3>
           <span className="text-xs text-zinc-500">

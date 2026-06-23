@@ -108,10 +108,10 @@ export default function LotteryList({
 
       <div className="flex items-center justify-between px-1 text-xs text-zinc-500">
         <span>
-          共 <span className="font-mono text-zinc-300">{total}</span> 条记录
+          共 <span className="font-mono text-zinc-700">{total}</span> 条记录
         </span>
         <span>
-          第 <span className="font-mono text-zinc-300">{currentPage}</span> /{" "}
+          第 <span className="font-mono text-zinc-700">{currentPage}</span> /{" "}
           {totalPages} 页
         </span>
       </div>

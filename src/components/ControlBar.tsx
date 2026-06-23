@@ -26,7 +26,7 @@ export default function ControlBar({ splitView }: ControlBarProps) {
             <span className="font-serif text-lg font-black text-gold">彩</span>
           </div>
           <div className="leading-tight">
-            <h1 className="font-serif text-lg font-bold text-zinc-50 sm:text-xl">
+            <h1 className="font-serif text-lg font-bold text-zinc-900 sm:text-xl">
               彩运
             </h1>
             <p className="hidden text-[10px] text-zinc-500 sm:block">
@@ -61,8 +61,8 @@ export default function ControlBar({ splitView }: ControlBarProps) {
             className={cn(
               "btn",
               splitView
-                ? "bg-gold text-ink-950 shadow-glow-gold"
-                : "border border-ink-600 bg-ink-800/60 text-zinc-300 hover:text-white",
+                ? "bg-gold text-zinc-900 shadow-glow-gold"
+                : "border border-ink-600 bg-ink-800/60 text-zinc-700 hover:text-zinc-900",
             )}
             onClick={() => setSplitView(!splitView)}
             aria-pressed={splitView}
@@ -84,7 +84,7 @@ export default function ControlBar({ splitView }: ControlBarProps) {
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="cursor-pointer rounded-full bg-ink-700 px-2 py-0.5 text-sm font-medium text-zinc-100 outline-none hover:bg-ink-600"
+              className="cursor-pointer rounded-full bg-ink-700 px-2 py-0.5 text-sm font-medium text-zinc-900 outline-none hover:bg-ink-600"
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
                 <option key={n} value={n} className="bg-ink-800">

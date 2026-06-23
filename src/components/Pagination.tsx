@@ -49,7 +49,7 @@ export default function Pagination({
               "h-9 min-w-9 rounded-full px-2 text-sm font-medium transition-all duration-200",
               p === currentPage
                 ? "bg-crimson text-white shadow-glow"
-                : "border border-ink-600 bg-ink-800/60 text-zinc-300 hover:border-crimson/50 hover:text-white",
+                : "border border-ink-600 bg-ink-800/60 text-zinc-700 hover:border-crimson/50 hover:text-zinc-900",
             )}
           >
             {p}
