@@ -271,6 +271,28 @@ export default function MatchResultPage() {
                 最高: {bestPrize}
               </span>
             )}
+            <div className="flex rounded-lg border border-ink-600 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => navigate(`/match-result?type=dlt${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors",
+                  type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
+                )}
+              >
+                大乐透
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/match-result?type=ssq${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors",
+                  type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
+                )}
+              >
+                双色球
+              </button>
+            </div>
           </div>
         </div>
       </header>
