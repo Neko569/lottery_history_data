@@ -552,12 +552,12 @@ export default function MatchResultPage() {
                       </div>
                     </div>
                     <div className="card flex items-center gap-3 p-4">
-                      <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", bestPrize && PRIZE_COLORS[bestPrize]?.bg ? PRIZE_COLORS[bestPrize]?.bg : "bg-yellow-100")}>
-                        <span className={cn("font-serif text-lg font-bold", bestPrize && PRIZE_COLORS[bestPrize]?.text ? PRIZE_COLORS[bestPrize]?.text : "text-yellow-600")}>奖</span>
+                      <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", bestPrize && PRIZE_COLORS[bestPrize]?.bg || "bg-yellow-100")}>
+                        <span className={cn("font-serif text-lg font-bold", bestPrize && PRIZE_COLORS[bestPrize]?.text || "text-yellow-600")}>奖</span>
                       </div>
                       <div>
                         <p className="text-xs text-zinc-500">最高奖项</p>
-                        <p className={cn("text-xl font-bold", bestPrize && PRIZE_COLORS[bestPrize]?.text ? PRIZE_COLORS[bestPrize]?.text.replace("text-", "text-").replace("-900", "-600") : "text-yellow-600")}>
+                        <p className={cn("text-xl font-bold", bestPrize && PRIZE_COLORS[bestPrize]?.text || "text-yellow-600")}>
                           {bestPrize || "-"}
                         </p>
                       </div>
