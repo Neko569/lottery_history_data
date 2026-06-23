@@ -146,7 +146,7 @@ export default function LotteryPanel({
             isDesktop && !compact ? "w-[420px]" : "w-full",
           )}
         >
-          {isDesktop && <TrendChart type={type} data={state.data} />}
+          <TrendChart type={type} data={state.data} />
           <RandomGenerator type={type} />
         </div>
       </div>
