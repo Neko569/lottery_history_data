@@ -59,7 +59,7 @@ export default function LotteryPanel({
       >
         <div className="flex items-center gap-3">
           <img
-            src={`/${type}-logo.gif`}
+            src={`/${type}-logo.svg`}
             alt={rule.name}
             className="h-10 w-10 rounded-xl object-contain"
             onError={(e) => {
