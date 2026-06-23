@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no">
+<base target="_blank">
+<title>统一错误页</title>
+<style>
+*{
+	margin:0;
+	padding:0;
+	-moz-box-sizing:border-box;
+	-webkit-box-sizing:border-box;
+	box-sizing:border-box;
+}
+html,body{
+    width:100%;
+    height:100%;
+    padding-bottom:env(safe-area-inset-bottom);
+	background:#fff;
+    font-family:PingFangSC-Regular,"Microsoft YaHei",helvetica,Arial;
+    color:#181818;
+    -webkit-text-size-adjust:100%;/* 关闭字体大小自动调整功能 */
+    -webkit-user-select:none;/* 禁止选中文字 */
+    -webkit-overflow-scrolling:touch;
+    -webkit-tap-highlight-color:rgba(0, 0, 0, 0);
+}
+html{font-size:50px}
+ul{list-style:none}
+img,a{-webkit-touch-callout:none; border:none;}/* 禁用长按页面时的弹出菜单(iOS下有效) ,img和a标签都要加 */
+img{vertical-align:middle;}
+a,a:active,a:hover{text-decoration:none;}
+a,button,input,textarea{-webkit-tap-highlight-color:rgba(0,0,0,0);}/* 去掉点击链接和文本框对象时默认的灰色半透明覆盖层(iOS)或者虚框(Android) */
+.f-cb{clear:both;}/* 清除浮动 */
+.f-cb:after{
+	clear:both;
+	display:block;
+	visibility:hidden;
+	height:0;
+	overflow:hidden;
+	content:"";
+}
+.m-notice{
+	position:absolute;
+	top:50%;
+	left:0;
+	text-align:center;
+	list-style:none;
+	width:100%;
+}
+.u-btn{
+	display:inline-block;
+	text-align:center;
+	cursor:pointer;
+	border:1px solid #d8d8d8;/* no */
+	background:#fff;
+	color:#666;
+	text-decoration:none;
+}
+
+@media screen and (max-width: 751px) {
+	html,body{font-size:.14rem}
+	.m-notice{margin-top:-38%; height:35%}
+	.m-notice li:nth-child(2){margin:.2rem auto .4rem; font-size:.3rem}
+	.u-noticeImg{width:50%}
+	.u-btn{
+		border-radius:.44rem;
+		width:90%;
+		height:.88rem;
+		line-height:.86rem;
+		font-size:.34rem;
+	}
+	.u-btn:active{background:#ccc}
+}
+@media screen and (min-width: 751px) {
+	html,body{font-size:14px}
+	.m-notice{margin-top:-215px; height:380px}
+	.m-notice li:nth-child(2){margin:20px auto 40px; font-size:24px}
+    .u-noticeImg{width:310px}
+	.u-btn{
+		border-radius:4px;
+		width:200px;
+		height:50px;
+		line-height:48px;
+		font-size:16px;
+	}
+	.u-btn:hover{border:1px solid #e30000; color:#e30000}
+}
+</style>
+</head>
+<body>
+<ul class="m-notice">
+    <li><img src="//www.lottery.gov.cn/error/notice/images/img_wrong.png" class="u-noticeImg"/></li>
+    <li>抱歉！页面中的内容不见了...</li>
+    <li><a href="http://www.lottery.gov.cn/" class="u-btn">返回首页</a></li>
+</ul>
+<script src="//www.lottery.gov.cn/error/notice/js/jquery-3.4.1.min.js"></script>
+<script>
+$(function(){
+	intWh();
+		$(window).resize(function(){
+		intWh();
+	});
+});
+function intWh(){
+	var docEl = document.documentElement;
+	var fontsize = 100 * (docEl.clientWidth / 750) + 'px';
+	docEl.style.fontSize = fontsize;
+};
+</script>
+</body>
+</html>
