@@ -18,7 +18,8 @@ interface TrendChartProps {
   data: LotteryData | null;
 }
 
-/** 走势图折线颜色调色板 */
+type TrendType = "position" | "sum" | "parity";
+
 const PALETTE = [
   "#E63946",
   "#D4AF37",
@@ -29,30 +30,128 @@ const PALETTE = [
   "#FF9F1C",
 ];
 
-/** 走势图：仅桌面端显示，展示各位置号码走势 */
+const TREND_TYPE_LABELS: Record<TrendType, string> = {
+  position: "位置走势",
+  sum: "和值走势",
+  parity: "奇偶比",
+};
+
 export default function TrendChart({ type, data }: TrendChartProps) {
   const rule = LOTTERY_RULES[type];
   const [period, setPeriod] = useState(30);
   const [area, setArea] = useState<"front" | "back">("front");
+  const [trendType, setTrendType] = useState<TrendType>("position");
 
   const count = area === "front" ? rule.frontCount : rule.backCount;
   const max = area === "front" ? rule.frontMax : rule.backMax;
 
   const chartData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
-    // 数据为倒序（最新在前），走势图需正序（旧→新），取最近 period 期
     const sliced = data.items.slice(0, period).reverse();
+
     return sliced.map((item) => {
       const nums = area === "front" ? item.front_numbers : item.back_numbers;
+      const numValues = nums.map((n) => Number(n));
       const row: Record<string, string | number> = {
         term: String(item.term),
       };
-      for (let i = 0; i < count; i++) {
-        row[`p${i + 1}`] = nums[i] ? Number(nums[i]) : 0;
+
+      if (trendType === "position") {
+        for (let i = 0; i < count; i++) {
+          row[`p${i + 1}`] = numValues[i] || 0;
+        }
+      } else if (trendType === "sum") {
+        const sum = numValues.reduce((acc, val) => acc + val, 0);
+        row["sum"] = sum;
+        row["avg"] = (sum / count).toFixed(1);
+      } else if (trendType === "parity") {
+        const even = numValues.filter((n) => n % 2 === 0).length;
+        const odd = numValues.filter((n) => n % 2 === 1).length;
+        row["even"] = even;
+        row["odd"] = odd;
+        row["ratio"] = odd > 0 ? (even / odd).toFixed(2) : even;
       }
+
       return row;
     });
-  }, [data, period, area, count]);
+  }, [data, period, area, count, trendType]);
+
+  const getChartLines = () => {
+    if (trendType === "position") {
+      return Array.from({ length: count }).map((_, i) => (
+        <Line
+          key={`p${i + 1}`}
+          type="monotone"
+          dataKey={`p${i + 1}`}
+          name={`位置${i + 1}`}
+          stroke={PALETTE[i % PALETTE.length]}
+          strokeWidth={2}
+          dot={{ r: 2.5, strokeWidth: 0 }}
+          activeDot={{ r: 5 }}
+          connectNulls
+        />
+      ));
+    } else if (trendType === "sum") {
+      return [
+        <Line
+          key="sum"
+          type="monotone"
+          dataKey="sum"
+          name="和值"
+          stroke="#E63946"
+          strokeWidth={2}
+          dot={{ r: 3, strokeWidth: 0 }}
+          activeDot={{ r: 6 }}
+        />,
+        <Line
+          key="avg"
+          type="monotone"
+          dataKey="avg"
+          name="平均值"
+          stroke="#3A86FF"
+          strokeWidth={2}
+          strokeDasharray="5 5"
+          dot={{ r: 3, strokeWidth: 0 }}
+          activeDot={{ r: 6 }}
+        />,
+      ];
+    } else if (trendType === "parity") {
+      return [
+        <Line
+          key="even"
+          type="monotone"
+          dataKey="even"
+          name="偶数个数"
+          stroke="#3A86FF"
+          strokeWidth={2}
+          dot={{ r: 3, strokeWidth: 0 }}
+          activeDot={{ r: 6 }}
+        />,
+        <Line
+          key="odd"
+          type="monotone"
+          dataKey="odd"
+          name="奇数个数"
+          stroke="#E63946"
+          strokeWidth={2}
+          dot={{ r: 3, strokeWidth: 0 }}
+          activeDot={{ r: 6 }}
+        />,
+      ];
+    }
+    return [];
+  };
+
+  const getYAxisDomain = () => {
+    if (trendType === "position") {
+      return [1, max] as [number, number];
+    } else if (trendType === "sum") {
+      return [count, count * max] as [number, number];
+    } else if (trendType === "parity") {
+      return [0, count] as [number, number];
+    }
+    return [0, 100] as [number, number];
+  };
 
   return (
     <div className="card p-4">
@@ -66,6 +165,22 @@ export default function TrendChart({ type, data }: TrendChartProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {/* 走势图类型切换 */}
+          <div className="seg">
+            {(Object.keys(TREND_TYPE_LABELS) as TrendType[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={cn(
+                  "seg-item",
+                  trendType === t && "seg-item-active",
+                )}
+                onClick={() => setTrendType(t)}
+              >
+                {TREND_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
           {/* 前后区切换 */}
           <div className="seg">
             <button
@@ -101,7 +216,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
                 )}
                 onClick={() => setPeriod(p)}
               >
-                {p}
+                {p}期
               </button>
             ))}
           </div>
@@ -129,7 +244,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
                 minTickGap={20}
               />
               <YAxis
-                domain={[1, max]}
+                domain={getYAxisDomain()}
                 tick={{ fill: "#71717a", fontSize: 11, fontFamily: "JetBrains Mono" }}
                 tickLine={false}
                 axisLine={{ stroke: "#D1D1D8" }}
@@ -150,19 +265,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
                 wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
                 iconType="circle"
               />
-              {Array.from({ length: count }).map((_, i) => (
-                <Line
-                  key={`p${i + 1}`}
-                  type="monotone"
-                  dataKey={`p${i + 1}`}
-                  name={`位置${i + 1}`}
-                  stroke={PALETTE[i % PALETTE.length]}
-                  strokeWidth={2}
-                  dot={{ r: 2.5, strokeWidth: 0 }}
-                  activeDot={{ r: 5 }}
-                  connectNulls
-                />
-              ))}
+              {getChartLines()}
             </LineChart>
           </ResponsiveContainer>
         </div>
