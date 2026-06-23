@@ -364,10 +364,23 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
         <div className="card p-4">
           <h4 className="mb-3 text-sm font-medium text-zinc-900">号码分布热力图（最近50期）</h4>
           <div className="overflow-x-auto">
-            <div className="min-w-[600px]">
-              <div className="grid grid-cols-1 gap-1">
+            <div className="min-w-[700px]">
+              {/* 号码列标题 */}
+              <div className="flex items-center gap-1 mb-1">
+                <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-400">期号</span>
+                {Array.from({ length: maxNum }, (_, i) => i + 1).map((n) => (
+                  <div
+                    key={n}
+                    className="flex-1 text-center text-[10px] font-mono font-medium text-zinc-600"
+                  >
+                    {String(n).padStart(2, "0")}
+                  </div>
+                ))}
+              </div>
+              {/* 热力图数据 */}
+              <div className="grid grid-cols-1 gap-0.5">
                 {heatmapData.map((row) => (
-                  <div key={row.term as string} className="flex items-center gap-1">
+                  <div key={row.term as string} className="flex items-center gap-0.5">
                     <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-500">
                       {(row.term as string).slice(-3)}
                     </span>
@@ -375,11 +388,15 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
                       <div
                         key={n}
                         className={cn(
-                          "h-4 flex-1 rounded-sm transition-colors",
-                          row[`n${n}`] === 1 ? "bg-crimson" : "bg-zinc-200",
+                          "flex-1 h-5 flex items-center justify-center rounded-sm transition-colors text-[10px] font-mono",
+                          row[`n${n}`] === 1
+                            ? "bg-crimson text-white font-bold"
+                            : "bg-zinc-100 text-zinc-400",
                         )}
                         title={`${row.term} - 号码 ${String(n).padStart(2, "0")}: ${row[`n${n}`] === 1 ? "出现" : "未出"}`}
-                      />
+                      >
+                        {String(n).padStart(2, "0")}
+                      </div>
                     ))}
                   </div>
                 ))}
@@ -391,7 +408,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               <span className="h-3 w-3 rounded-sm bg-crimson" /> 出现
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-3 w-3 rounded-sm bg-zinc-200" /> 未出
+              <span className="h-3 w-3 rounded-sm bg-zinc-100" /> 未出
             </span>
           </div>
         </div>
