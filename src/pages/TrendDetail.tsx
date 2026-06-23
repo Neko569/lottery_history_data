@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { LotteryType } from "@/types/lottery";
@@ -11,6 +12,13 @@ export default function TrendDetail() {
   const type = params.type || "dlt";
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);
+  const fetchRemoteData = useLotteryStore((s) => s.fetchRemoteData);
+
+  useEffect(() => {
+    if (!state.data && !state.loading) {
+      fetchRemoteData(type);
+    }
+  }, [type, state.data, state.loading, fetchRemoteData]);
 
   return (
     <div className="min-h-screen">
