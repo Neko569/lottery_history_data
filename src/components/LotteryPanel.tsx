@@ -1,5 +1,6 @@
 import { useRef } from "react";
-import { RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud } from "lucide-react";
+import { Link } from "react-router-dom";
+import { RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, TrendingUp } from "lucide-react";
 import type { LotteryType } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URL } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -79,6 +80,13 @@ export default function LotteryPanel({
         </div>
 
         <div className="flex items-center gap-1.5">
+          <Link
+            to={`/trend/${type}`}
+            className="btn-ghost h-9 w-9 p-0"
+            title="完整号码走势"
+          >
+            <TrendingUp className="h-4 w-4" />
+          </Link>
           <button
             type="button"
             className="btn-ghost h-9 w-9 p-0"
