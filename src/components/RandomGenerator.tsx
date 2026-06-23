@@ -26,13 +26,11 @@ const exportAsImage = (tickets: RandomTicket[], type: LotteryType) => {
   // 计算每行球的数量（前区和后区）
   const frontBalls = rule.frontCount;
   const backBalls = rule.backCount;
-  const totalBalls = frontBalls + backBalls + 1; // +1 for separator
   const rowHeight = ballSize + rowGap;
 
-  // 计算尺寸
-  const maxBallsInRow = Math.max(frontBalls, backBalls);
-  const contentWidth = padding * 2 + maxBallsInRow * ballSize + (maxBallsInRow - 1) * ballGap;
-  const width = contentWidth;
+  // 计算尺寸：需要容纳前区 + 分隔符 + 后区
+  const totalWidth = padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
+  const width = totalWidth;
   const height = labelHeight + tickets.length * rowHeight + padding;
 
   // 创建 canvas

@@ -39,10 +39,12 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
   const labelHeight = 60;
 
   const frontBalls = rule.frontCount;
-  const maxBallsInRow = Math.max(frontBalls, rule.backCount);
-  const contentWidth = padding * 2 + maxBallsInRow * ballSize + (maxBallsInRow - 1) * ballGap;
-  const width = contentWidth;
+  const backBalls = rule.backCount;
   const rowHeight = ballSize + rowGap;
+
+  // 计算尺寸：需要容纳前区 + 分隔符 + 后区
+  const totalWidth = padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
+  const width = totalWidth;
   const height = labelHeight + tickets.length * rowHeight + padding;
 
   const canvas = document.createElement("canvas");
