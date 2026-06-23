@@ -103,7 +103,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
 
   const heatmapData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
-    const sliced = data.items.slice(0, Math.min(50, period)).reverse();
+    const sliced = data.items.slice(0, Math.min(50, period));
     return sliced.map((item, idx) => {
       const nums = area === "front" ? item.front_numbers : item.back_numbers;
       const row: Record<string, number | string> = { term: String(item.term), index: idx };
