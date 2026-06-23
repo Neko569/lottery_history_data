@@ -161,7 +161,7 @@ export default function MatchResultPage() {
     return result;
   };
 
-  const totalMatches = allTicketsComplete
+  const totalMatches = customTickets.length > 0
     ? customTickets.flatMap(ticket => {
         const actualTickets = generateCompoundTickets(ticket);
         return actualTickets.map(t => calculateMatches({ ...t, isCompound: ticket.isCompound }));
