@@ -7,6 +7,7 @@ import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryList from "./LotteryList";
 import TrendChart from "./TrendChart";
 import RandomGenerator from "./RandomGenerator";
+import { LotteryLogo } from "./LotteryLogo";
 import { cn } from "@/lib/utils";
 
 interface LotteryPanelProps {
@@ -58,21 +59,7 @@ export default function LotteryPanel({
         )}
       >
         <div className="flex items-center gap-3">
-          <img
-            src={`/${type}-logo.svg`}
-            alt={rule.name}
-            className="h-10 w-10 rounded-xl object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = "none";
-              target.nextElementSibling?.classList.remove("hidden");
-            }}
-          />
-          <div className="hidden h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-crimson to-crimson-700">
-            <span className="font-serif text-base font-black text-white">
-              {rule.name[0]}
-            </span>
-          </div>
+          <LotteryLogo type={type} className="h-10 w-10 rounded-xl" />
           <div className="leading-tight">
             <h2 className={cn("font-serif text-lg font-bold", accentText)}>
               {rule.name}

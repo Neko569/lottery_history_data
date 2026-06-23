@@ -1,4 +1,5 @@
-import { Columns2, Rows2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Columns2, Rows2, Target } from "lucide-react";
 import type { LotteryType } from "@/types/lottery";
 import { LOTTERY_RULES, PAGE_SIZE_OPTIONS } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -54,6 +55,16 @@ export default function ControlBar({ splitView }: ControlBarProps) {
               ))}
             </div>
           )}
+
+          {/* 对比分析 */}
+          <Link
+            to={`/match?type=${activeLottery}`}
+            className="btn border border-ink-600 bg-indigo/10 text-indigo hover:bg-indigo/20"
+            title="号码对比分析"
+          >
+            <Target className="h-4 w-4" />
+            <span className="hidden sm:inline">对比分析</span>
+          </Link>
 
           {/* 分屏开关 */}
           <button
