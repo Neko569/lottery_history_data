@@ -22,7 +22,6 @@ export default function TrendDetail() {
 
   return (
     <div className="min-h-screen">
-      {/* 顶部导航 */}
       <header className="sticky top-0 z-20 border-b border-ink-700 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3 sm:px-6">
           <button
@@ -43,7 +42,6 @@ export default function TrendDetail() {
         </div>
       </header>
 
-      {/* 内容区 */}
       <main className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
         <FullNumberTrendChart type={type} data={state.data} />
       </main>
