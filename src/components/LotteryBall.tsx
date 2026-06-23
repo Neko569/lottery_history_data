@@ -6,7 +6,7 @@ interface LotteryBallProps {
   variant: "front" | "back";
   /** 尺寸 */
   size?: "xs" | "sm" | "md" | "lg";
-  /** 是否高亮（命中） */
+  /** 是否高亮（命中），undefined表示不应用高亮逻辑 */
   highlight?: boolean;
   className?: string;
 }
@@ -16,7 +16,7 @@ export default function LotteryBall({
   number,
   variant,
   size = "md",
-  highlight = false,
+  highlight,
   className,
 }: LotteryBallProps) {
   const sizes: Record<string, string> = {
@@ -36,8 +36,8 @@ export default function LotteryBall({
         isFront
           ? "bg-gradient-to-br from-crimson-400 via-crimson to-crimson-700"
           : "bg-gradient-to-br from-indigo-400 via-indigo to-indigo-700",
-        highlight && "ring-2 ring-yellow-400 ring-offset-1 ring-offset-ink-900 scale-110",
-        !highlight && "opacity-60",
+        highlight === true && "ring-2 ring-yellow-400 ring-offset-1 ring-offset-ink-900 scale-110",
+        highlight === false && "opacity-60",
         className,
       )}
     >
