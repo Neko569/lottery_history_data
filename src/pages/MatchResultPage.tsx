@@ -118,15 +118,17 @@ export default function MatchResultPage() {
     });
     
     const matches = results.filter(r => r.prize !== null);
-    const maxMatch = Math.max(...matches.map(m => m.total), 0);
-    const bestPrize = matches.length > 0 
-      ? matches.reduce<string | null>((best, m) => {
-          const levels = ["一等奖", "二等奖", "三等奖", "四等奖", "五等奖", "六等奖", "七等奖", "八等奖", "九等奖"];
-          const bestIdx = levels.indexOf(best || "九等奖");
-          const mIdx = levels.indexOf(m.prizeLevel || "九等奖");
-          return mIdx < bestIdx ? m.prizeLevel : best;
-        }, null)
-      : null;
+    
+    const prizeOrder = ["一等奖", "二等奖", "三等奖", "四等奖", "五等奖", "六等奖", "七等奖", "八等奖", "九等奖"];
+    matches.sort((a, b) => {
+      const aIdx = a.prizeLevel ? prizeOrder.indexOf(a.prizeLevel) : prizeOrder.length;
+      const bIdx = b.prizeLevel ? prizeOrder.indexOf(b.prizeLevel) : prizeOrder.length;
+      if (aIdx !== bIdx) return aIdx - bIdx;
+      return Number(b.term) - Number(a.term);
+    });
+    
+    const maxMatch = matches.length > 0 ? matches[0].total : 0;
+    const bestPrize = matches.length > 0 ? matches[0].prizeLevel : null;
     
     return { total: matches.length, matches, maxMatch, prizeLevel: bestPrize };
   }, [getFilteredData]);
@@ -178,6 +180,10 @@ export default function MatchResultPage() {
 
   const handleAddTicket = () => {
     setCustomTickets([...customTickets, { front: [], back: [], isCompound: false }]);
+  };
+
+  const handleClearAll = () => {
+    setCustomTickets([{ front: [], back: [], isCompound: false }]);
   };
 
   const handleRemoveTicket = (index: number) => {
@@ -463,7 +469,7 @@ export default function MatchResultPage() {
                                 key={num}
                                 type="button"
                                 className={cn(
-                                  "flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
+                                  "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
                                   ticket.front.includes(num)
                                     ? "bg-crimson text-white"
                                     : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
@@ -488,7 +494,7 @@ export default function MatchResultPage() {
                                 key={num}
                                 type="button"
                                 className={cn(
-                                  "flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
+                                  "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
                                   ticket.back.includes(num)
                                     ? "bg-indigo text-white"
                                     : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
@@ -504,14 +510,24 @@ export default function MatchResultPage() {
                     );
                   })}
 
-                  <button
-                    type="button"
-                    onClick={handleAddTicket}
-                    className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-600 py-3 text-zinc-500 hover:border-crimson hover:text-crimson transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    添加一注
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddTicket}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-600 py-3 text-zinc-500 hover:border-crimson hover:text-crimson transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      添加一注
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearAll}
+                      className="btn btn-sm text-zinc-500 hover:text-crimson"
+                    >
+                      <Minus className="h-3 w-3" />
+                      清空
+                    </button>
+                  </div>
                 </div>
               </div>
 
