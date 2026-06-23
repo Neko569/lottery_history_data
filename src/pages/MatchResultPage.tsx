@@ -40,12 +40,27 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
 
   const frontBalls = rule.frontCount;
   const backBalls = rule.backCount;
-  const rowHeight = ballSize + rowGap;
 
-  // 计算尺寸：需要容纳前区 + 分隔符 + 后区
-  const totalWidth = padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
-  const width = totalWidth;
-  const height = labelHeight + tickets.length * rowHeight + padding;
+  // 检查是否有复式票
+  const hasCompound = tickets.some(t => t.isCompound);
+
+  // 计算尺寸
+  let width: number;
+  let height: number;
+
+  if (hasCompound) {
+    // 复式：上下两排，取前后区最大宽度
+    const maxBalls = Math.max(...tickets.map(t => Math.max(t.front.length, t.back.length)));
+    width = padding * 2 + maxBalls * ballSize + (maxBalls - 1) * ballGap;
+    const ticketHeight = ballSize * 2 + rowGap + 16; // 前区+后区+间距+小边距
+    height = labelHeight + tickets.length * ticketHeight + padding;
+  } else {
+    // 单式：同一排
+    const totalWidth = padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
+    width = totalWidth;
+    const rowHeight = ballSize + rowGap;
+    height = labelHeight + tickets.length * rowHeight + padding;
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = width * 2;
@@ -61,61 +76,102 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
   ctx.textAlign = "center";
   ctx.fillText(rule.name, width / 2, 36);
 
-  tickets.forEach((ticket, ticketIdx) => {
-    const y = labelHeight + ticketIdx * rowHeight;
-
-    ticket.front.forEach((num, i) => {
-      const x = padding + i * (ballSize + ballGap) + ballSize / 2;
-      const ballY = y + ballSize / 2;
-
-      const gradient = ctx.createRadialGradient(x - 3, ballY - 3, 0, x, ballY, ballSize / 2);
+  // 绘制号码的辅助函数
+  const drawBall = (x: number, y: number, num: string, isFront: boolean) => {
+    const gradient = ctx.createRadialGradient(x - 3, y - 3, 0, x, y, ballSize / 2);
+    if (isFront) {
       gradient.addColorStop(0, "#ef4444");
       gradient.addColorStop(1, "#b91c1c");
-      ctx.beginPath();
-      ctx.arc(x, ballY, ballSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
+    } else if (isDlt) {
+      gradient.addColorStop(0, "#818cf8");
+      gradient.addColorStop(1, "#4f46e5");
+    } else {
+      gradient.addColorStop(0, "#3b82f6");
+      gradient.addColorStop(1, "#1d4ed8");
+    }
+    ctx.beginPath();
+    ctx.arc(x, y, ballSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 16px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(num, x, ballY);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 16px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(num, x, y);
+  };
+
+  if (hasCompound) {
+    // 复式：上下两排布局
+    let currentY = labelHeight;
+    tickets.forEach((ticket, ticketIdx) => {
+      const centerX = width / 2;
+
+      // 前区（上排）
+      const frontWidth = ticket.front.length * ballSize + (ticket.front.length - 1) * ballGap;
+      const frontStartX = centerX - frontWidth / 2;
+      ticket.front.forEach((num, i) => {
+        const x = frontStartX + i * (ballSize + ballGap) + ballSize / 2;
+        const y = currentY + ballSize / 2;
+        drawBall(x, y, num, true);
+      });
+
+      // 后区（下排）
+      const backWidth = ticket.back.length * ballSize + (ticket.back.length - 1) * ballGap;
+      const backStartX = centerX - backWidth / 2;
+      ticket.back.forEach((num, i) => {
+        const x = backStartX + i * (ballSize + ballGap) + ballSize / 2;
+        const y = currentY + ballSize + rowGap + ballSize / 2;
+        drawBall(x, y, num, false);
+      });
+
+      // 期号
+      ctx.fillStyle = "#71717a";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(`${ticketIdx + 1}`, 8, currentY + ballSize / 2 + 4);
+
+      // 复式标签
+      ctx.fillStyle = "#f59e0b";
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText("复式", width - 8, currentY + ballSize / 2 + 4);
+
+      currentY += ballSize * 2 + rowGap + 16;
     });
+  } else {
+    // 单式：同一排布局
+    const rowHeight = ballSize + rowGap;
+    tickets.forEach((ticket, ticketIdx) => {
+      const y = labelHeight + ticketIdx * rowHeight;
 
-    const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
-    ctx.fillStyle = "#52525b";
-    ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
+      // 前区球
+      ticket.front.forEach((num, i) => {
+        const x = padding + i * (ballSize + ballGap) + ballSize / 2;
+        const ballY = y + ballSize / 2;
+        drawBall(x, ballY, num, true);
+      });
 
-    ticket.back.forEach((num, i) => {
-      const x = separatorX + separatorWidth + i * (ballSize + ballGap) + ballSize / 2;
-      const ballY = y + ballSize / 2;
+      // 分隔符
+      const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
+      ctx.fillStyle = "#52525b";
+      ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
 
-      const gradient = ctx.createRadialGradient(x - 3, ballY - 3, 0, x, ballY, ballSize / 2);
-      if (isDlt) {
-        gradient.addColorStop(0, "#818cf8");
-        gradient.addColorStop(1, "#4f46e5");
-      } else {
-        gradient.addColorStop(0, "#3b82f6");
-        gradient.addColorStop(1, "#1d4ed8");
-      }
-      ctx.beginPath();
-      ctx.arc(x, ballY, ballSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
+      // 后区球
+      ticket.back.forEach((num, i) => {
+        const x = separatorX + separatorWidth + i * (ballSize + ballGap) + ballSize / 2;
+        const ballY = y + ballSize / 2;
+        drawBall(x, ballY, num, false);
+      });
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 16px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(num, x, ballY);
+      ctx.fillStyle = "#71717a";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
     });
-
-    ctx.fillStyle = "#71717a";
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
-  });
+  }
 
   const link = document.createElement("a");
   link.download = `${type}-${Date.now()}.png`;
