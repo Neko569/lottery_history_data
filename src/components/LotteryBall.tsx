@@ -5,7 +5,9 @@ interface LotteryBallProps {
   /** 球的类别：前区/红球 或 后区/蓝球 */
   variant: "front" | "back";
   /** 尺寸 */
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
+  /** 是否高亮（命中） */
+  highlight?: boolean;
   className?: string;
 }
 
@@ -14,9 +16,11 @@ export default function LotteryBall({
   number,
   variant,
   size = "md",
+  highlight = false,
   className,
 }: LotteryBallProps) {
   const sizes: Record<string, string> = {
+    xs: "h-5 w-5 text-[10px]",
     sm: "h-7 w-7 text-xs",
     md: "h-9 w-9 text-sm",
     lg: "h-11 w-11 text-base",
@@ -27,11 +31,13 @@ export default function LotteryBall({
   return (
     <span
       className={cn(
-        "relative inline-flex items-center justify-center rounded-full font-mono font-bold tabular-nums text-white shadow-md",
+        "relative inline-flex items-center justify-center rounded-full font-mono font-bold tabular-nums text-white shadow-md transition-all",
         sizes[size],
         isFront
           ? "bg-gradient-to-br from-crimson-400 via-crimson to-crimson-700"
           : "bg-gradient-to-br from-indigo-400 via-indigo to-indigo-700",
+        highlight && "ring-2 ring-yellow-400 ring-offset-1 ring-offset-ink-900 scale-110",
+        !highlight && "opacity-60",
         className,
       )}
     >

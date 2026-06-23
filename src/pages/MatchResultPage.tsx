@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud } from "lucide-react";
-import type { LotteryType, RandomTicket } from "@/types/lottery";
+import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3 } from "lucide-react";
+import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URL, generateTickets } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
@@ -15,6 +15,18 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: 100, label: "近100期" },
   { value: "all", label: "所有期数" },
 ];
+
+const PRIZE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  "一等奖": { bg: "bg-gradient-to-r from-yellow-400 to-amber-500", text: "text-yellow-900", border: "border-yellow-400" },
+  "二等奖": { bg: "bg-gradient-to-r from-purple-400 to-fuchsia-500", text: "text-white", border: "border-purple-400" },
+  "三等奖": { bg: "bg-gradient-to-r from-blue-400 to-cyan-500", text: "text-white", border: "border-blue-400" },
+  "四等奖": { bg: "bg-gradient-to-r from-green-400 to-emerald-500", text: "text-white", border: "border-green-400" },
+  "五等奖": { bg: "bg-gradient-to-r from-teal-400 to-cyan-500", text: "text-white", border: "border-teal-400" },
+  "六等奖": { bg: "bg-zinc-500", text: "text-white", border: "border-zinc-500" },
+  "七等奖": { bg: "bg-zinc-600", text: "text-white", border: "border-zinc-600" },
+  "八等奖": { bg: "bg-zinc-700", text: "text-zinc-200", border: "border-zinc-700" },
+  "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
+};
 
 interface LotteryTicket {
   front: string[];
@@ -34,7 +46,7 @@ export default function MatchResultPage() {
     ? JSON.parse(ticketsJson).map((t: RandomTicket) => ({ ...t, isCompound: false }))
     : [];
   
-  const [selectedRange, setSelectedRange] = useState<RangeOption>("all");
+  const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(initialTickets.length > 0 ? initialTickets : [{ front: [], back: [], isCompound: false }]);
   
   const rule = LOTTERY_RULES[type];
@@ -46,6 +58,15 @@ export default function MatchResultPage() {
   const error = state.error;
   const source = state.source;
 
+  const isTicketComplete = (ticket: LotteryTicket): boolean => {
+    if (ticket.isCompound) {
+      return ticket.front.length >= rule.frontCount && ticket.back.length >= rule.backCount;
+    }
+    return ticket.front.length === rule.frontCount && ticket.back.length === rule.backCount;
+  };
+
+  const allTicketsComplete = customTickets.length > 0 && customTickets.every(t => isTicketComplete(t));
+
   const getFilteredData = useCallback(() => {
     if (!data) return [];
     const count = selectedRange === "all" ? data.items.length : selectedRange;
@@ -54,24 +75,24 @@ export default function MatchResultPage() {
 
   const getPrizeLevel = (frontMatch: number, backMatch: number) => {
     if (type === "dlt") {
-      if (frontMatch === 5 && backMatch === 2) return { level: "一等奖", color: "text-yellow-400" };
-      if (frontMatch === 5 && backMatch === 1) return { level: "二等奖", color: "text-purple-400" };
-      if (frontMatch === 5 && backMatch === 0) return { level: "三等奖", color: "text-blue-400" };
-      if (frontMatch === 4 && backMatch === 2) return { level: "四等奖", color: "text-green-400" };
-      if (frontMatch === 4 && backMatch === 1) return { level: "五等奖", color: "text-cyan-400" };
-      if (frontMatch === 3 && backMatch === 2) return { level: "六等奖", color: "text-zinc-400" };
-      if (frontMatch === 4 && backMatch === 0) return { level: "七等奖", color: "text-zinc-500" };
-      if ((frontMatch === 3 && backMatch === 1) || (frontMatch === 2 && backMatch === 2)) return { level: "八等奖", color: "text-zinc-600" };
-      if ((frontMatch === 3 && backMatch === 0) || (frontMatch === 2 && backMatch === 1) || (frontMatch === 1 && backMatch === 2) || (frontMatch === 0 && backMatch === 2)) return { level: "九等奖", color: "text-zinc-700" };
+      if (frontMatch === 5 && backMatch === 2) return { level: "一等奖", ...PRIZE_COLORS["一等奖"] };
+      if (frontMatch === 5 && backMatch === 1) return { level: "二等奖", ...PRIZE_COLORS["二等奖"] };
+      if (frontMatch === 5 && backMatch === 0) return { level: "三等奖", ...PRIZE_COLORS["三等奖"] };
+      if (frontMatch === 4 && backMatch === 2) return { level: "四等奖", ...PRIZE_COLORS["四等奖"] };
+      if (frontMatch === 4 && backMatch === 1) return { level: "五等奖", ...PRIZE_COLORS["五等奖"] };
+      if (frontMatch === 3 && backMatch === 2) return { level: "六等奖", ...PRIZE_COLORS["六等奖"] };
+      if (frontMatch === 4 && backMatch === 0) return { level: "七等奖", ...PRIZE_COLORS["七等奖"] };
+      if ((frontMatch === 3 && backMatch === 1) || (frontMatch === 2 && backMatch === 2)) return { level: "八等奖", ...PRIZE_COLORS["八等奖"] };
+      if ((frontMatch === 3 && backMatch === 0) || (frontMatch === 2 && backMatch === 1) || (frontMatch === 1 && backMatch === 2) || (frontMatch === 0 && backMatch === 2)) return { level: "九等奖", ...PRIZE_COLORS["九等奖"] };
     } else {
-      if (frontMatch === 6 && backMatch === 1) return { level: "一等奖", color: "text-yellow-400" };
-      if (frontMatch === 6 && backMatch === 0) return { level: "二等奖", color: "text-purple-400" };
-      if (frontMatch === 5 && backMatch === 1) return { level: "三等奖", color: "text-blue-400" };
-      if (frontMatch === 5 && backMatch === 0) return { level: "四等奖", color: "text-green-400" };
-      if (frontMatch === 4 && backMatch === 1) return { level: "五等奖", color: "text-cyan-400" };
-      if (frontMatch === 4 && backMatch === 0) return { level: "六等奖", color: "text-zinc-400" };
-      if (frontMatch === 3 && backMatch === 1) return { level: "七等奖", color: "text-zinc-500" };
-      if ((frontMatch === 3 && backMatch === 0) || (frontMatch === 2 && backMatch === 1) || (frontMatch === 1 && backMatch === 1) || (frontMatch === 0 && backMatch === 1)) return { level: "八等奖", color: "text-zinc-600" };
+      if (frontMatch === 6 && backMatch === 1) return { level: "一等奖", ...PRIZE_COLORS["一等奖"] };
+      if (frontMatch === 6 && backMatch === 0) return { level: "二等奖", ...PRIZE_COLORS["二等奖"] };
+      if (frontMatch === 5 && backMatch === 1) return { level: "三等奖", ...PRIZE_COLORS["三等奖"] };
+      if (frontMatch === 5 && backMatch === 0) return { level: "四等奖", ...PRIZE_COLORS["四等奖"] };
+      if (frontMatch === 4 && backMatch === 1) return { level: "五等奖", ...PRIZE_COLORS["五等奖"] };
+      if (frontMatch === 4 && backMatch === 0) return { level: "六等奖", ...PRIZE_COLORS["六等奖"] };
+      if (frontMatch === 3 && backMatch === 1) return { level: "七等奖", ...PRIZE_COLORS["七等奖"] };
+      if ((frontMatch === 3 && backMatch === 0) || (frontMatch === 2 && backMatch === 1) || (frontMatch === 1 && backMatch === 1) || (frontMatch === 0 && backMatch === 1)) return { level: "八等奖", ...PRIZE_COLORS["八等奖"] };
     }
     return null;
   };
@@ -92,6 +113,7 @@ export default function MatchResultPage() {
         total: frontMatch + backMatch,
         prize,
         prizeLevel: prize?.level || null,
+        item,
       };
     });
     
@@ -137,10 +159,12 @@ export default function MatchResultPage() {
     return result;
   };
 
-  const totalMatches = customTickets.flatMap(ticket => {
-    const actualTickets = generateCompoundTickets(ticket);
-    return actualTickets.map(t => calculateMatches({ ...t, isCompound: ticket.isCompound }));
-  });
+  const totalMatches = allTicketsComplete
+    ? customTickets.flatMap(ticket => {
+        const actualTickets = generateCompoundTickets(ticket);
+        return actualTickets.map(t => calculateMatches({ ...t, isCompound: ticket.isCompound }));
+      })
+    : [];
 
   const grandTotal = totalMatches.reduce((sum, m) => sum + m.total, 0);
   const bestPrize = totalMatches.length > 0
@@ -237,8 +261,8 @@ export default function MatchResultPage() {
           </div>
           <div className="flex items-center gap-2">
             {bestPrize && (
-              <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
-                最高奖项: {bestPrize}
+              <span className={cn("rounded-full px-3 py-1 text-xs font-bold", PRIZE_COLORS[bestPrize]?.bg, PRIZE_COLORS[bestPrize]?.text)}>
+                最高: {bestPrize}
               </span>
             )}
           </div>
@@ -369,100 +393,116 @@ export default function MatchResultPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {customTickets.map((ticket, ticketIdx) => (
-                    <div key={ticketIdx} className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
-                            第{ticketIdx + 1}注
-                          </span>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={ticket.isCompound}
-                              onChange={() => handleToggleCompound(ticketIdx)}
-                              className="rounded border-ink-600 bg-ink-800 text-crimson focus:ring-crimson/20"
-                            />
-                            <span className="text-xs text-zinc-500">复式</span>
-                            {ticket.isCompound && (
-                              <span className="rounded bg-crimson/20 px-2 py-0.5 text-xs text-crimson">
-                                {getTotalCombinations(ticket)}注
+                  {customTickets.map((ticket, ticketIdx) => {
+                    const complete = isTicketComplete(ticket);
+                    return (
+                      <div key={ticketIdx} className={cn(
+                        "rounded-xl border bg-ink-900/30 p-4 transition-colors",
+                        complete ? "border-green-500/40" : "border-ink-700/60"
+                      )}>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
+                              第{ticketIdx + 1}注
+                            </span>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={ticket.isCompound}
+                                onChange={() => handleToggleCompound(ticketIdx)}
+                                className="rounded border-ink-600 bg-ink-800 text-crimson focus:ring-crimson/20"
+                              />
+                              <span className="text-xs text-zinc-500">复式</span>
+                              {ticket.isCompound && (
+                                <span className="rounded bg-crimson/20 px-2 py-0.5 text-xs text-crimson">
+                                  {getTotalCombinations(ticket)}注
+                                </span>
+                              )}
+                            </label>
+                            {complete ? (
+                              <span className="flex items-center gap-1 text-xs text-green-500">
+                                <CheckCircle2 className="h-3 w-3" />
+                                已选完
+                              </span>
+                            ) : (
+                              <span className="text-xs text-zinc-500">
+                                请选择 {ticket.isCompound ? `至少${rule.frontCount}个` : rule.frontCount}个{rule.frontLabel}和{ticket.isCompound ? `至少${rule.backCount}个` : rule.backCount}个{rule.backLabel}
                               </span>
                             )}
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleGenerateTicket(ticketIdx)}
-                            className="btn btn-sm"
-                            title="随机生成"
-                          >
-                            <Shuffle className="h-3 w-3" />
-                          </button>
-                          {customTickets.length > 1 && (
+                          </div>
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleRemoveTicket(ticketIdx)}
-                              className="btn btn-sm text-zinc-500 hover:text-crimson"
+                              onClick={() => handleGenerateTicket(ticketIdx)}
+                              className="btn btn-sm"
+                              title="随机生成"
                             >
-                              <Minus className="h-3 w-3" />
+                              <Shuffle className="h-3 w-3" />
                             </button>
-                          )}
+                            {customTickets.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveTicket(ticketIdx)}
+                                className="btn btn-sm text-zinc-500 hover:text-crimson"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="mb-3">
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="text-xs font-medium text-zinc-500">
-                            {rule.frontLabel} ({ticket.front.length}/{ticket.isCompound ? rule.frontMax : rule.frontCount})
-                          </span>
+                        <div className="mb-3">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="text-xs font-medium text-zinc-500">
+                              {rule.frontLabel} ({ticket.front.length}/{ticket.isCompound ? rule.frontMax : rule.frontCount})
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {Array.from({ length: rule.frontMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                className={cn(
+                                  "flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
+                                  ticket.front.includes(num)
+                                    ? "bg-crimson text-white"
+                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
+                                )}
+                                onClick={() => handleToggleNumber(ticketIdx, "front", num)}
+                              >
+                                {Number(num)}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-1">
-                          {Array.from({ length: rule.frontMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
-                            <button
-                              key={num}
-                              type="button"
-                              className={cn(
-                                "flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
-                                ticket.front.includes(num)
-                                  ? "bg-crimson text-white"
-                                  : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
-                              )}
-                              onClick={() => handleToggleNumber(ticketIdx, "front", num)}
-                            >
-                              {Number(num)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
 
-                      <div>
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="text-xs font-medium text-zinc-500">
-                            {rule.backLabel} ({ticket.back.length}/{ticket.isCompound ? rule.backMax : rule.backCount})
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {Array.from({ length: rule.backMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
-                            <button
-                              key={num}
-                              type="button"
-                              className={cn(
-                                "flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
-                                ticket.back.includes(num)
-                                  ? "bg-indigo text-white"
-                                  : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
-                              )}
-                              onClick={() => handleToggleNumber(ticketIdx, "back", num)}
-                            >
-                              {Number(num)}
-                            </button>
-                          ))}
+                        <div>
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="text-xs font-medium text-zinc-500">
+                              {rule.backLabel} ({ticket.back.length}/{ticket.isCompound ? rule.backMax : rule.backCount})
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {Array.from({ length: rule.backMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                className={cn(
+                                  "flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
+                                  ticket.back.includes(num)
+                                    ? "bg-indigo text-white"
+                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
+                                )}
+                                onClick={() => handleToggleNumber(ticketIdx, "back", num)}
+                              >
+                                {Number(num)}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   <button
                     type="button"
@@ -475,151 +515,191 @@ export default function MatchResultPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="card flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10">
-                    <Trophy className="h-5 w-5 text-gold" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">中奖次数</p>
-                    <p className="text-xl font-bold text-zinc-900">{grandTotal}</p>
-                  </div>
+              {!allTicketsComplete ? (
+                <div className="card text-center py-8">
+                  <BarChart3 className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
+                  <p className="text-zinc-500 mb-2">请先选择完整的号码</p>
+                  <p className="text-xs text-zinc-400">
+                    选完 {rule.frontCount} 个{rule.frontLabel}和 {rule.backCount} 个{rule.backLabel}后自动开始对比
+                  </p>
                 </div>
-                <div className="card flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-100">
-                    <span className="font-serif text-lg font-bold text-yellow-600">奖</span>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div className="card flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10">
+                        <Trophy className="h-5 w-5 text-gold" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">中奖次数</p>
+                        <p className="text-xl font-bold text-zinc-900">{grandTotal}</p>
+                      </div>
+                    </div>
+                    <div className="card flex items-center gap-3 p-4">
+                      <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", bestPrize ? PRIZE_COLORS[bestPrize]?.bg : "bg-yellow-100")}>
+                        <span className={cn("font-serif text-lg font-bold", bestPrize ? PRIZE_COLORS[bestPrize]?.text : "text-yellow-600")}>奖</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">最高奖项</p>
+                        <p className={cn("text-xl font-bold", bestPrize ? PRIZE_COLORS[bestPrize]?.text.replace("text-", "text-").replace("-900", "-600") : "text-yellow-600")}>
+                          {bestPrize || "-"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="card flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo/10">
+                        <TrendingDown className="h-5 w-5 text-indigo" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">查询期数</p>
+                        <p className="text-xl font-bold text-zinc-900">{getFilteredData().length}期</p>
+                      </div>
+                    </div>
+                    <div className="card flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green/10">
+                        <span className="font-serif text-lg font-bold text-green">注</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">投注数量</p>
+                        <p className="text-xl font-bold text-zinc-900">
+                          {customTickets.reduce((sum, t) => sum + getTotalCombinations(t), 0)}注
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">最高奖项</p>
-                    <p className="text-xl font-bold text-yellow-600">{bestPrize || "-"}</p>
-                  </div>
-                </div>
-                <div className="card flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo/10">
-                    <TrendingDown className="h-5 w-5 text-indigo" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">查询期数</p>
-                    <p className="text-xl font-bold text-zinc-900">{getFilteredData().length}期</p>
-                  </div>
-                </div>
-                <div className="card flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green/10">
-                    <span className="font-serif text-lg font-bold text-green">注</span>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">投注数量</p>
-                    <p className="text-xl font-bold text-zinc-900">
-                      {customTickets.reduce((sum, t) => sum + getTotalCombinations(t), 0)}注
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {customTickets.map((ticket, ticketIdx) => {
-                const actualTickets = generateCompoundTickets(ticket);
-                let hasPrize = false;
-                const allMatches = actualTickets.map(t => {
-                  const matchResult = calculateMatches({ ...t, isCompound: ticket.isCompound });
-                  if (matchResult.matches.length > 0) hasPrize = true;
-                  return matchResult;
-                });
+                  {customTickets.map((ticket, ticketIdx) => {
+                    const actualTickets = generateCompoundTickets(ticket);
+                    let hasPrize = false;
+                    const allMatches = actualTickets.map(t => {
+                      const matchResult = calculateMatches({ ...t, isCompound: ticket.isCompound });
+                      if (matchResult.matches.length > 0) hasPrize = true;
+                      return matchResult;
+                    });
 
-                if (!hasPrize) return null;
+                    if (!hasPrize) return null;
 
-                return (
-                  <div key={ticketIdx} className="card overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-ink-700/60 px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
-                          第{ticketIdx + 1}注 {ticket.isCompound && `(复式${getTotalCombinations(ticket)}注)`}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {ticket.front.map((n, i) => (
-                            <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
-                          ))}
-                          <span className="mx-1 h-3 w-px bg-ink-600" />
-                          {ticket.back.map((n, i) => (
-                            <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
-                          ))}
+                    return (
+                      <div key={ticketIdx} className="card overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-ink-700/60 px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
+                              第{ticketIdx + 1}注 {ticket.isCompound && `(复式${getTotalCombinations(ticket)}注)`}
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {ticket.front.map((n, i) => (
+                                <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
+                              ))}
+                              <span className="mx-1 h-3 w-px bg-ink-600" />
+                              {ticket.back.map((n, i) => (
+                                <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {allMatches.some(m => m.prizeLevel) && (
+                              <span className={cn("rounded-full px-3 py-1 text-xs font-bold", 
+                                PRIZE_COLORS[allMatches.find(m => m.prizeLevel)?.prizeLevel || ""]?.bg,
+                                PRIZE_COLORS[allMatches.find(m => m.prizeLevel)?.prizeLevel || ""]?.text)}>
+                                {allMatches.find(m => m.prizeLevel)?.prizeLevel}
+                              </span>
+                            )}
+                            <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400">
+                              中奖{allMatches.reduce((sum, m) => sum + m.matches.length, 0)}次
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="divide-y divide-ink-700/60">
+                          {actualTickets.map((actualTicket, actualIdx) => {
+                            const matchResult = calculateMatches({ ...actualTicket, isCompound: ticket.isCompound });
+                            if (matchResult.matches.length === 0) return null;
+
+                            return (
+                              <div key={actualIdx}>
+                                {ticket.isCompound && (
+                                  <div className="bg-ink-900/30 px-4 py-2">
+                                    <span className="text-xs text-zinc-500">
+                                      组合 {actualIdx + 1}: {actualTicket.front.join(' ')} + {actualTicket.back.join(' ')}
+                                    </span>
+                                  </div>
+                                )}
+                                {matchResult.matches.slice(0, 30).map((m, i) => {
+                                  const prize = getPrizeLevel(m.frontMatch, m.backMatch);
+                                  const item = m.item as LotteryItem;
+                                  return (
+                                    <div key={i} className="px-4 py-3 hover:bg-ink-900/30">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-4">
+                                          <span className="font-mono text-sm text-zinc-600">
+                                            {m.term}期
+                                          </span>
+                                          <span className="text-xs text-zinc-500">
+                                            {m.date}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                          <div className="flex items-center gap-2">
+                                            <span className={cn("rounded-md px-2 py-0.5 text-xs",
+                                              m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500")}>
+                                              前{m.frontMatch}
+                                            </span>
+                                            <span className={cn("rounded-md px-2 py-0.5 text-xs",
+                                              m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500")}>
+                                              后{m.backMatch}
+                                            </span>
+                                          </div>
+                                          {prize && (
+                                            <span className={cn("font-bold text-sm px-2 py-0.5 rounded", prize.bg, prize.text)}>
+                                              {prize.level}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-1.5 pl-8">
+                                        {item.front_numbers.map((n, ni) => (
+                                          <LotteryBall
+                                            key={`fn-${ni}`}
+                                            number={n}
+                                            variant="front"
+                                            size="xs"
+                                            highlight={actualTicket.front.includes(n)}
+                                          />
+                                        ))}
+                                        <span className="mx-2 h-3 w-px bg-ink-600" />
+                                        {item.back_numbers.map((n, ni) => (
+                                          <LotteryBall
+                                            key={`bn-${ni}`}
+                                            number={n}
+                                            variant="back"
+                                            size="xs"
+                                            highlight={actualTicket.back.includes(n)}
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {matchResult.matches.length > 30 && (
+                                  <div className="px-4 py-2 text-center text-xs text-zinc-500">
+                                    还有 {matchResult.matches.length - 30} 条中奖记录...
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {allMatches.some(m => m.prizeLevel) && (
-                          <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
-                            {allMatches.find(m => m.prizeLevel)?.prizeLevel}
-                          </span>
-                        )}
-                        <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400">
-                          中奖{allMatches.reduce((sum, m) => sum + m.matches.length, 0)}次
-                        </span>
-                      </div>
+                    );
+                  })}
+
+                  {customTickets.length > 0 && grandTotal === 0 && (
+                    <div className="card text-center py-8">
+                      <Target className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
+                      <p className="text-zinc-500">未查询到中奖记录</p>
                     </div>
-
-                    <div className="divide-y divide-ink-700/60">
-                      {actualTickets.map((actualTicket, actualIdx) => {
-                        const matchResult = calculateMatches({ ...actualTicket, isCompound: ticket.isCompound });
-                        if (matchResult.matches.length === 0) return null;
-
-                        return (
-                          <div key={actualIdx}>
-                            {ticket.isCompound && (
-                              <div className="bg-ink-900/30 px-4 py-2">
-                                <span className="text-xs text-zinc-500">
-                                  组合 {actualIdx + 1}: {actualTicket.front.join(' ')} + {actualTicket.back.join(' ')}
-                                </span>
-                              </div>
-                            )}
-                            {matchResult.matches.slice(0, 30).map((m, i) => {
-                              const prize = getPrizeLevel(m.frontMatch, m.backMatch);
-                              return (
-                                <div key={i} className="flex items-center justify-between px-4 py-3 hover:bg-ink-900/30">
-                                  <div className="flex items-center gap-4">
-                                    <span className="font-mono text-sm text-zinc-600">
-                                      {m.term}期
-                                    </span>
-                                    <span className="text-xs text-zinc-500">
-                                      {m.date}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                        m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500")}>
-                                        前{m.frontMatch}
-                                      </span>
-                                      <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                        m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500")}>
-                                        后{m.backMatch}
-                                      </span>
-                                    </div>
-                                    {prize && (
-                                      <span className={cn("font-medium text-sm", prize.color)}>
-                                        {prize.level}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {matchResult.matches.length > 30 && (
-                              <div className="px-4 py-2 text-center text-xs text-zinc-500">
-                                还有 {matchResult.matches.length - 30} 条中奖记录...
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {customTickets.length > 0 && grandTotal === 0 && (
-                <div className="card text-center py-8">
-                  <Target className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
-                  <p className="text-zinc-500">未查询到中奖记录</p>
-                </div>
+                  )}
+                </>
               )}
             </div>
           </>
