@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Shuffle, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Shuffle, Trash2, ArrowRight } from "lucide-react";
 import type { LotteryType, RandomTicket } from "@/types/lottery";
 import { LOTTERY_RULES, generateTickets } from "@/utils/lottery";
 import LotteryBall from "./LotteryBall";
@@ -13,6 +14,7 @@ const COUNT_OPTIONS = [1, 5, 10];
 
 /** 随机号码生成器 */
 export default function RandomGenerator({ type }: RandomGeneratorProps) {
+  const navigate = useNavigate();
   const rule = LOTTERY_RULES[type];
   const [count, setCount] = useState(1);
   const [tickets, setTickets] = useState<RandomTicket[]>([]);
@@ -22,6 +24,11 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
   };
 
   const handleClear = () => setTickets([]);
+
+  const handleCompare = () => {
+    const ticketsJson = encodeURIComponent(JSON.stringify(tickets));
+    navigate(`/match?type=${type}&tickets=${ticketsJson}`);
+  };
 
   return (
     <div className="card p-4">
@@ -92,6 +99,14 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
               </div>
             </div>
           ))}
+          <button
+            type="button"
+            className="btn-gold mt-2"
+            onClick={handleCompare}
+          >
+            <ArrowRight className="h-4 w-4" />
+            对比分析
+          </button>
         </div>
       )}
     </div>
