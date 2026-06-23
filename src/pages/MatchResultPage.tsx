@@ -3,7 +3,7 @@ import { ArrowLeft, Trophy, TrendingDown, Target } from "lucide-react";
 import type { LotteryType, RandomTicket } from "@/types/lottery";
 import { LOTTERY_RULES } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
-import LotteryBall from "./LotteryBall";
+import LotteryBall from "@/components/LotteryBall";
 import { cn } from "@/lib/utils";
 
 interface MatchResultPageProps {
@@ -33,11 +33,11 @@ export default function MatchResultPage() {
     if (!data) return { total: 0, matches: [] };
     
     const results = data.items.map((item) => {
-      const frontMatch = item.front.filter(n => ticket.front.includes(n)).length;
-      const backMatch = item.back.filter(n => ticket.back.includes(n)).length;
+      const frontMatch = item.front_numbers.filter(n => ticket.front.includes(n)).length;
+      const backMatch = item.back_numbers.filter(n => ticket.back.includes(n)).length;
       return {
         term: item.term,
-        date: item.date,
+        date: item.draw_time,
         frontMatch,
         backMatch,
         total: frontMatch + backMatch,
