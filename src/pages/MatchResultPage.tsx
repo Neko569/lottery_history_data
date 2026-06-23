@@ -274,7 +274,7 @@ export default function MatchResultPage() {
             <div className="flex rounded-lg border border-ink-600 overflow-hidden">
               <button
                 type="button"
-                onClick={() => navigate(`/match-result?type=dlt${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
+                onClick={() => navigate(`/match?type=dlt${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
                   type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
@@ -284,7 +284,7 @@ export default function MatchResultPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate(`/match-result?type=ssq${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
+                onClick={() => navigate(`/match?type=ssq${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
                   type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
