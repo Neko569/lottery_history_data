@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3 } from "lucide-react";
+import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URL, generateTickets } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -26,6 +26,99 @@ const PRIZE_COLORS: Record<string, { bg: string; text: string; border: string }>
   "七等奖": { bg: "bg-zinc-600", text: "text-white", border: "border-zinc-600" },
   "八等奖": { bg: "bg-zinc-700", text: "text-zinc-200", border: "border-zinc-700" },
   "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
+};
+
+/** 导出号码为图片 */
+const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof LOTTERY_RULES.dlt) => {
+  const isDlt = type === "dlt";
+  const padding = 40;
+  const ballSize = 36;
+  const ballGap = 8;
+  const rowGap = 20;
+  const separatorWidth = 30;
+  const labelHeight = 60;
+
+  const frontBalls = rule.frontCount;
+  const maxBallsInRow = Math.max(frontBalls, rule.backCount);
+  const contentWidth = padding * 2 + maxBallsInRow * ballSize + (maxBallsInRow - 1) * ballGap;
+  const width = contentWidth;
+  const rowHeight = ballSize + rowGap;
+  const height = labelHeight + tickets.length * rowHeight + padding;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * 2;
+  canvas.height = height * 2;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(2, 2);
+
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#e5e5e5";
+  ctx.font = "bold 24px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(rule.name, width / 2, 36);
+
+  tickets.forEach((ticket, ticketIdx) => {
+    const y = labelHeight + ticketIdx * rowHeight;
+
+    ticket.front.forEach((num, i) => {
+      const x = padding + i * (ballSize + ballGap) + ballSize / 2;
+      const ballY = y + ballSize / 2;
+
+      const gradient = ctx.createRadialGradient(x - 3, ballY - 3, 0, x, ballY, ballSize / 2);
+      gradient.addColorStop(0, "#ef4444");
+      gradient.addColorStop(1, "#b91c1c");
+      ctx.beginPath();
+      ctx.arc(x, ballY, ballSize / 2, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(num, x, ballY);
+    });
+
+    const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
+    ctx.fillStyle = "#52525b";
+    ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
+
+    ticket.back.forEach((num, i) => {
+      const x = separatorX + separatorWidth + i * (ballSize + ballGap) + ballSize / 2;
+      const ballY = y + ballSize / 2;
+
+      const gradient = ctx.createRadialGradient(x - 3, ballY - 3, 0, x, ballY, ballSize / 2);
+      if (isDlt) {
+        gradient.addColorStop(0, "#818cf8");
+        gradient.addColorStop(1, "#4f46e5");
+      } else {
+        gradient.addColorStop(0, "#3b82f6");
+        gradient.addColorStop(1, "#1d4ed8");
+      }
+      ctx.beginPath();
+      ctx.arc(x, ballY, ballSize / 2, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(num, x, ballY);
+    });
+
+    ctx.fillStyle = "#71717a";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
+  });
+
+  const link = document.createElement("a");
+  link.download = `${type}-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
 };
 
 interface LotteryTicket {
@@ -274,7 +367,10 @@ export default function MatchResultPage() {
             <div className="flex rounded-lg border border-ink-600 overflow-hidden">
               <button
                 type="button"
-                onClick={() => navigate(`/match?type=dlt${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
+                onClick={() => {
+                  setCustomTickets([{ front: [], back: [], isCompound: false }]);
+                  navigate(`/match?type=dlt`);
+                }}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
                   type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
@@ -284,7 +380,10 @@ export default function MatchResultPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate(`/match?type=ssq${ticketsJson ? '&tickets=' + encodeURIComponent(ticketsJson) : ''}`)}
+                onClick={() => {
+                  setCustomTickets([{ front: [], back: [], isCompound: false }]);
+                  navigate(`/match?type=ssq`);
+                }}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
                   type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
@@ -549,6 +648,16 @@ export default function MatchResultPage() {
                       <Minus className="h-3 w-3" />
                       清空
                     </button>
+                    {customTickets.some(t => t.front.length > 0 || t.back.length > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => exportAsImage(customTickets, type, rule)}
+                        className="btn btn-sm text-zinc-500 hover:text-indigo"
+                      >
+                        <Download className="h-3 w-3" />
+                        导出
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
