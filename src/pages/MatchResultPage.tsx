@@ -45,8 +45,8 @@ const DLT_PACKAGES: DltPackage[] = [
     name: "崭露头角",
     price: 18,
     parts: [
-      { kind: "compound", front: 5, back: 3, count: 1 },
       { kind: "single", front: 5, back: 2, count: 6 },
+      { kind: "compound", front: 5, back: 3, count: 1 },
     ],
   },
   {
@@ -54,8 +54,8 @@ const DLT_PACKAGES: DltPackage[] = [
     name: "鱼跃龙门",
     price: 28,
     parts: [
-      { kind: "compound", front: 6, back: 2, count: 1 },
       { kind: "single", front: 5, back: 2, count: 8 },
+      { kind: "compound", front: 6, back: 2, count: 1 },
     ],
   },
   {
@@ -63,8 +63,8 @@ const DLT_PACKAGES: DltPackage[] = [
     name: "马到功成",
     price: 58,
     parts: [
-      { kind: "compound", front: 7, back: 2, count: 1 },
       { kind: "single", front: 5, back: 2, count: 8 },
+      { kind: "compound", front: 7, back: 2, count: 1 },
     ],
   },
   {
@@ -72,9 +72,9 @@ const DLT_PACKAGES: DltPackage[] = [
     name: "高飞远翔",
     price: 88,
     parts: [
+      { kind: "single", front: 5, back: 2, count: 5 },
       { kind: "compound", front: 6, back: 3, count: 1 },
       { kind: "compound", front: 7, back: 2, count: 1 },
-      { kind: "single", front: 5, back: 2, count: 5 },
     ],
   },
 ];
