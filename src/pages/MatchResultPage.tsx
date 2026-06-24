@@ -53,7 +53,7 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
 
   // 按每注自身是否复式计算尺寸（复式与单式混合时各自独立）
   const getTicketWidth = (ticket: LotteryTicket) => {
-    if (ticket.isCompound) {
+    if (isCompoundTicket(ticket, rule)) {
       // 复式：上下两排，取前后区最大宽度
       const maxBalls = Math.max(ticket.front.length, ticket.back.length);
       return padding * 2 + maxBalls * ballSize + (maxBalls - 1) * ballGap;
@@ -62,7 +62,7 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
     return padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
   };
   const getTicketHeight = (ticket: LotteryTicket) =>
-    ticket.isCompound ? ballSize * 2 + rowGap + 16 : ballSize + rowGap;
+    isCompoundTicket(ticket, rule) ? ballSize * 2 + rowGap + 16 : ballSize + rowGap;
 
   const width = Math.max(...tickets.map(getTicketWidth));
   const height = labelHeight + tickets.reduce((sum, t) => sum + getTicketHeight(t), 0) + padding;
@@ -109,7 +109,7 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
   // 逐注绘制：复式上下两排，单式同一排（各自独立判断）
   let currentY = labelHeight;
   tickets.forEach((ticket, ticketIdx) => {
-    if (ticket.isCompound) {
+    if (isCompoundTicket(ticket, rule)) {
       // 复式：上下两排布局
       const centerX = width / 2;
 
@@ -187,8 +187,11 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
 interface LotteryTicket {
   front: string[];
   back: string[];
-  isCompound: boolean;
 }
+
+/** 判断一注是否为复式：任一区选号数超过正常一注数量即为复式 */
+const isCompoundTicket = (ticket: { front: string[]; back: string[] }, rule: { frontCount: number; backCount: number }): boolean =>
+  ticket.front.length > rule.frontCount || ticket.back.length > rule.backCount;
 
 export default function MatchResultPage() {
   const location = useLocation();
@@ -198,12 +201,12 @@ export default function MatchResultPage() {
   
   const type = searchParams.get("type") as LotteryType || "dlt";
   const ticketsJson = searchParams.get("tickets");
-  const initialTickets: LotteryTicket[] = ticketsJson 
-    ? JSON.parse(ticketsJson).map((t: RandomTicket) => ({ ...t, isCompound: true }))
+  const initialTickets: LotteryTicket[] = ticketsJson
+    ? JSON.parse(ticketsJson).map((t: RandomTicket) => ({ front: t.front, back: t.back }))
     : [];
-  
+
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
-  const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(initialTickets.length > 0 ? initialTickets : [{ front: [], back: [], isCompound: true }]);
+  const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(initialTickets.length > 0 ? initialTickets : [{ front: [], back: [] }]);
   
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);
@@ -215,10 +218,7 @@ export default function MatchResultPage() {
   const source = state.source;
 
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
-    if (ticket.isCompound) {
-      return ticket.front.length >= rule.frontCount && ticket.back.length >= rule.backCount;
-    }
-    return ticket.front.length === rule.frontCount && ticket.back.length === rule.backCount;
+    return ticket.front.length >= rule.frontCount && ticket.back.length >= rule.backCount;
   };
 
   const allTicketsComplete = customTickets.length > 0 && customTickets.every(t => isTicketComplete(t));
@@ -290,14 +290,14 @@ export default function MatchResultPage() {
   }, [getFilteredData]);
 
   const generateCompoundTickets = (ticket: LotteryTicket): RandomTicket[] => {
-    if (!ticket.isCompound) {
+    if (!isCompoundTicket(ticket, rule)) {
       return [{ front: [...ticket.front], back: [...ticket.back] }];
     }
-    
+
     const frontCombinations = combinations(ticket.front, rule.frontCount);
     const backCombinations = combinations(ticket.back, rule.backCount);
-    
-    return frontCombinations.flatMap(f => 
+
+    return frontCombinations.flatMap(f =>
       backCombinations.map(b => ({ front: f, back: b }))
     );
   };
@@ -320,7 +320,7 @@ export default function MatchResultPage() {
   const totalMatches = customTickets.length > 0
     ? customTickets.flatMap(ticket => {
         const actualTickets = generateCompoundTickets(ticket);
-        return actualTickets.map(t => calculateMatches({ ...t, isCompound: ticket.isCompound }));
+        return actualTickets.map(t => calculateMatches(t));
       })
     : [];
 
@@ -335,11 +335,11 @@ export default function MatchResultPage() {
     : null;
 
   const handleAddTicket = () => {
-    setCustomTickets([...customTickets, { front: [], back: [], isCompound: true }]);
+    setCustomTickets([...customTickets, { front: [], back: [] }]);
   };
 
   const handleClearAll = () => {
-    setCustomTickets([{ front: [], back: [], isCompound: true }]);
+    setCustomTickets([{ front: [], back: [] }]);
   };
 
   const handleRemoveTicket = (index: number) => {
@@ -353,9 +353,7 @@ export default function MatchResultPage() {
       if (arr.includes(number)) {
         return { ...ticket, [numType]: arr.filter(n => n !== number) };
       } else {
-        const maxCount = ticket.isCompound 
-          ? (numType === "front" ? rule.frontMax : rule.backMax)
-          : (numType === "front" ? rule.frontCount : rule.backCount);
+        const maxCount = numType === "front" ? rule.frontMax : rule.backMax;
         if (arr.length >= maxCount) return ticket;
         return { ...ticket, [numType]: [...arr, number].sort((a, b) => Number(a) - Number(b)) };
       }
@@ -366,14 +364,7 @@ export default function MatchResultPage() {
     const newTickets = generateTickets(type, 1);
     setCustomTickets(customTickets.map((ticket, idx) => {
       if (idx !== ticketIndex) return ticket;
-      return { ...newTickets[0], isCompound: ticket.isCompound };
-    }));
-  };
-
-  const handleToggleCompound = (ticketIndex: number) => {
-    setCustomTickets(customTickets.map((ticket, idx) => {
-      if (idx !== ticketIndex) return ticket;
-      return { ...ticket, isCompound: !ticket.isCompound };
+      return { ...newTickets[0] };
     }));
   };
 
@@ -386,7 +377,7 @@ export default function MatchResultPage() {
   };
 
   const getTotalCombinations = (ticket: LotteryTicket): number => {
-    if (!ticket.isCompound) return 1;
+    if (!isCompoundTicket(ticket, rule)) return 1;
     const frontCombos = combinationCount(ticket.front.length, rule.frontCount);
     const backCombos = combinationCount(ticket.back.length, rule.backCount);
     return frontCombos * backCombos;
@@ -432,7 +423,7 @@ export default function MatchResultPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setCustomTickets([{ front: [], back: [], isCompound: true }]);
+                  setCustomTickets([{ front: [], back: [] }]);
                   navigate(`/match?type=dlt`);
                 }}
                 className={cn(
@@ -445,7 +436,7 @@ export default function MatchResultPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setCustomTickets([{ front: [], back: [], isCompound: true }]);
+                  setCustomTickets([{ front: [], back: [] }]);
                   navigate(`/match?type=ssq`);
                 }}
                 className={cn(
@@ -596,20 +587,11 @@ export default function MatchResultPage() {
                             <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
                               第{ticketIdx + 1}注
                             </span>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={ticket.isCompound}
-                                onChange={() => handleToggleCompound(ticketIdx)}
-                                className="rounded border-ink-600 bg-ink-800 text-crimson focus:ring-crimson/20"
-                              />
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400">复式</span>
-                              {ticket.isCompound && (
-                                <span className="rounded bg-crimson/20 px-2 py-0.5 text-xs text-crimson">
-                                  {getTotalCombinations(ticket)}注
-                                </span>
-                              )}
-                            </label>
+                            {isCompoundTicket(ticket, rule) && (
+                              <span className="rounded bg-crimson/20 px-2 py-0.5 text-xs text-crimson">
+                                复式 {getTotalCombinations(ticket)}注
+                              </span>
+                            )}
                             {complete ? (
                               <span className="flex items-center gap-1 text-xs text-green-500">
                                 <CheckCircle2 className="h-3 w-3" />
@@ -617,7 +599,7 @@ export default function MatchResultPage() {
                               </span>
                             ) : (
                               <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                请选择 {ticket.isCompound ? `至少${rule.frontCount}个` : rule.frontCount}个{rule.frontLabel}和{ticket.isCompound ? `至少${rule.backCount}个` : rule.backCount}个{rule.backLabel}
+                                请选择至少{rule.frontCount}个{rule.frontLabel}和至少{rule.backCount}个{rule.backLabel}
                               </span>
                             )}
                           </div>
@@ -645,7 +627,7 @@ export default function MatchResultPage() {
                         <div className="mb-3">
                           <div className="mb-2 flex items-center gap-2">
                             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              {rule.frontLabel} ({ticket.front.length}/{ticket.isCompound ? rule.frontMax : rule.frontCount})
+                              {rule.frontLabel} ({ticket.front.length}/{rule.frontMax}，最少{rule.frontCount})
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1">
@@ -670,7 +652,7 @@ export default function MatchResultPage() {
                         <div>
                           <div className="mb-2 flex items-center gap-2">
                             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              {rule.backLabel} ({ticket.back.length}/{ticket.isCompound ? rule.backMax : rule.backCount})
+                              {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1">
@@ -781,9 +763,10 @@ export default function MatchResultPage() {
 
                   {customTickets.map((ticket, ticketIdx) => {
                     const actualTickets = generateCompoundTickets(ticket);
+                    const compound = isCompoundTicket(ticket, rule);
                     let hasPrize = false;
                     const allMatches = actualTickets.map(t => {
-                      const matchResult = calculateMatches({ ...t, isCompound: ticket.isCompound });
+                      const matchResult = calculateMatches(t);
                       if (matchResult.matches.length > 0) hasPrize = true;
                       return matchResult;
                     });
@@ -795,7 +778,7 @@ export default function MatchResultPage() {
                         <div className="flex items-center justify-between border-b border-ink-700/60 px-4 py-3">
                           <div className="flex items-center gap-3">
                             <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
-                              第{ticketIdx + 1}注 {ticket.isCompound && `(复式${getTotalCombinations(ticket)}注)`}
+                              第{ticketIdx + 1}注 {compound && `(复式${getTotalCombinations(ticket)}注)`}
                             </span>
                             <div className="flex flex-wrap items-center gap-1.5">
                               {ticket.front.map((n, i) => (
@@ -823,12 +806,12 @@ export default function MatchResultPage() {
 
                         <div className="divide-y divide-ink-700/60">
                           {actualTickets.map((actualTicket, actualIdx) => {
-                            const matchResult = calculateMatches({ ...actualTicket, isCompound: ticket.isCompound });
+                            const matchResult = calculateMatches(actualTicket);
                             if (matchResult.matches.length === 0) return null;
 
                             return (
                               <div key={actualIdx}>
-                                {ticket.isCompound && (
+                                {compound && (
                                   <div className="bg-ink-900/30 px-4 py-2">
                                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                       组合 {actualIdx + 1}: {actualTicket.front.join(' ')} + {actualTicket.back.join(' ')}
