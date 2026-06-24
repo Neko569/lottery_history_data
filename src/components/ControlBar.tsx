@@ -1,17 +1,16 @@
-import { Link } from "react-router-dom";
-import { Columns2, Rows2, Target } from "lucide-react";
+import { Columns2, Rows2 } from "lucide-react";
 import type { LotteryType } from "@/types/lottery";
 import { LOTTERY_RULES, PAGE_SIZE_OPTIONS } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import { cn } from "@/lib/utils";
-import ThemeToggle from "./ThemeToggle";
 
 interface ControlBarProps {
   /** 是否处于分屏模式（分屏时隐藏彩种切换） */
   splitView: boolean;
 }
 
-/** 顶部全局控制栏 */
+/** 首页二级工具栏：彩种切换 / 分屏 / 每页条数
+ *  品牌与主题切换已上移至全局 Navbar */
 export default function ControlBar({ splitView }: ControlBarProps) {
   const activeLottery = useLotteryStore((s) => s.activeLottery);
   const setActiveLottery = useLotteryStore((s) => s.setActiveLottery);
@@ -20,56 +19,28 @@ export default function ControlBar({ splitView }: ControlBarProps) {
   const setPageSize = useLotteryStore((s) => s.setPageSize);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-ink-700/60 bg-ink-950/80 backdrop-blur-xl">
+    <div className="border-b border-ink-700/60 bg-ink-950/40">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-        {/* 标题 */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-crimson to-crimson-700 shadow-glow">
-            <span className="font-serif text-lg font-black text-gold">彩</span>
+        {/* 彩种切换：分屏时隐藏 */}
+        {!splitView && (
+          <div className="seg">
+            {(Object.keys(LOTTERY_RULES) as LotteryType[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={cn(
+                  "seg-item",
+                  activeLottery === t && "seg-item-active",
+                )}
+                onClick={() => setActiveLottery(t)}
+              >
+                {LOTTERY_RULES[t].name}
+              </button>
+            ))}
           </div>
-          <div className="leading-tight">
-            <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100 sm:text-xl">
-              彩运
-            </h1>
-            <p className="hidden text-[10px] text-zinc-500 dark:text-zinc-400 sm:block">
-              开奖历史 · 走势分析 · 随机生成
-            </p>
-          </div>
-        </div>
+        )}
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {/* 深色模式切换 */}
-          <ThemeToggle />
-
-          {/* 彩种切换：分屏时隐藏 */}
-          {!splitView && (
-            <div className="seg">
-              {(Object.keys(LOTTERY_RULES) as LotteryType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={cn(
-                    "seg-item",
-                    activeLottery === t && "seg-item-active",
-                  )}
-                  onClick={() => setActiveLottery(t)}
-                >
-                  {LOTTERY_RULES[t].name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* 对比分析 */}
-          <Link
-            to={`/match?type=${activeLottery}`}
-            className="btn border border-ink-600 bg-indigo/10 text-indigo hover:bg-indigo/20"
-            title="号码对比分析"
-          >
-            <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">对比分析</span>
-          </Link>
-
           {/* 分屏开关 */}
           <button
             type="button"
@@ -111,6 +82,6 @@ export default function ControlBar({ splitView }: ControlBarProps) {
           </label>
         </div>
       </div>
-    </header>
+    </div>
   );
 }
