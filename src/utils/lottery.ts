@@ -64,6 +64,15 @@ export function generateTickets(type: LotteryType, count: number): RandomTicket[
   return Array.from({ length: count }, () => generateTicket(type));
 }
 
+/** 生成一注指定前后区个数的随机号码（用于套餐票/复式） */
+export function generateTicketWithCounts(type: LotteryType, frontCount: number, backCount: number): RandomTicket {
+  const rule = LOTTERY_RULES[type];
+  return {
+    front: pickNumbers(frontCount, rule.frontMax),
+    back: pickNumbers(backCount, rule.backMax),
+  };
+}
+
 /** 每页条数可选项 */
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 

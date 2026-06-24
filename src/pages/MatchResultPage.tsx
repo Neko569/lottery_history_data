@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download } from "lucide-react";
+import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URL, generateTickets } from "@/utils/lottery";
+import { LOTTERY_RULES, DATA_REPO_URL, generateTickets, generateTicketWithCounts } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -16,6 +16,23 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: 50, label: "近50期" },
   { value: 100, label: "近100期" },
   { value: "all", label: "所有期数" },
+];
+
+/** 大乐透套餐票模板（仅大乐透支持，双色球保持不变） */
+interface DltPackage {
+  id: string;
+  name: string;
+  front: number;
+  back: number;
+}
+
+const DLT_PACKAGES: DltPackage[] = [
+  { id: "single", name: "单式 5+2", front: 5, back: 2 },
+  { id: "c6_2", name: "复式 6+2", front: 6, back: 2 },
+  { id: "c7_2", name: "复式 7+2", front: 7, back: 2 },
+  { id: "c5_3", name: "复式 5+3", front: 5, back: 3 },
+  { id: "c8_2", name: "复式 8+2", front: 8, back: 2 },
+  { id: "c7_3", name: "复式 7+3", front: 7, back: 3 },
 ];
 
 const PRIZE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -344,6 +361,12 @@ export default function MatchResultPage() {
     }));
   };
 
+  /** 按套餐票生成：仅大乐透，按选定套餐配置随机生成一注并追加到列表 */
+  const handleGeneratePackage = (pkg: DltPackage) => {
+    const ticket = generateTicketWithCounts(type, pkg.front, pkg.back);
+    setCustomTickets([...customTickets, { front: ticket.front, back: ticket.back }]);
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -549,6 +572,28 @@ export default function MatchResultPage() {
                     共 {getFilteredData().length} 期数据
                   </span>
                 </div>
+
+                {type === "dlt" && (
+                  <div className="mb-4 rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Package className="h-3.5 w-3.5 text-gold" />
+                      <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">按套餐票生成</span>
+                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400">点击追加一注对应套餐</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {DLT_PACKAGES.map((pkg) => (
+                        <button
+                          key={pkg.id}
+                          type="button"
+                          className="rounded-full border border-ink-600 bg-ink-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-gold hover:text-gold dark:text-zinc-300"
+                          onClick={() => handleGeneratePackage(pkg)}
+                        >
+                          {pkg.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   {customTickets.map((ticket, ticketIdx) => {
