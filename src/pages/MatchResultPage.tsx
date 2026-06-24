@@ -256,10 +256,16 @@ export default function MatchResultPage() {
   const calculateMatches = useCallback((ticket: LotteryTicket) => {
     const filteredData = getFilteredData();
     if (filteredData.length === 0) return { total: 0, matches: [], maxMatch: 0, prizeLevel: null };
-    
+
+    // 用 Set 加速命中判断（复式选号池可能较大，且查询期数可能为"所有"）
+    const frontSet = new Set(ticket.front);
+    const backSet = new Set(ticket.back);
+
     const results = filteredData.map((item) => {
-      const frontMatch = item.front_numbers.filter(n => ticket.front.includes(n)).length;
-      const backMatch = item.back_numbers.filter(n => ticket.back.includes(n)).length;
+      // 复式一整注直接匹配：命中数 = 选号池 ∩ 开奖号码
+      // 对单式即为该注命中数；对复式即为该期能达到的最高命中数（决定最高奖项）
+      const frontMatch = item.front_numbers.filter(n => frontSet.has(n)).length;
+      const backMatch = item.back_numbers.filter(n => backSet.has(n)).length;
       const prize = getPrizeLevel(frontMatch, backMatch);
       return {
         term: item.term,
@@ -289,39 +295,9 @@ export default function MatchResultPage() {
     return { total: matches.length, matches, maxMatch, prizeLevel: bestPrize };
   }, [getFilteredData]);
 
-  const generateCompoundTickets = (ticket: LotteryTicket): RandomTicket[] => {
-    if (!isCompoundTicket(ticket, rule)) {
-      return [{ front: [...ticket.front], back: [...ticket.back] }];
-    }
-
-    const frontCombinations = combinations(ticket.front, rule.frontCount);
-    const backCombinations = combinations(ticket.back, rule.backCount);
-
-    return frontCombinations.flatMap(f =>
-      backCombinations.map(b => ({ front: f, back: b }))
-    );
-  };
-
-  const combinations = (arr: string[], k: number): string[][] => {
-    if (k === 1) return arr.map(x => [x]);
-    if (k === arr.length) return [arr];
-    
-    const result: string[][] = [];
-    for (let i = 0; i <= arr.length - k; i++) {
-      const head = arr[i];
-      const tailCombinations = combinations(arr.slice(i + 1), k - 1);
-      for (const tail of tailCombinations) {
-        result.push([head, ...tail]);
-      }
-    }
-    return result;
-  };
-
+  // 复式不再展开为所有组合，直接以一整注匹配历史，避免注数过多导致卡顿
   const totalMatches = customTickets.length > 0
-    ? customTickets.flatMap(ticket => {
-        const actualTickets = generateCompoundTickets(ticket);
-        return actualTickets.map(t => calculateMatches(t));
-      })
+    ? customTickets.map(ticket => calculateMatches(ticket))
     : [];
 
   const grandTotal = totalMatches.reduce((sum, m) => sum + m.total, 0);
@@ -762,16 +738,9 @@ export default function MatchResultPage() {
                   </div>
 
                   {customTickets.map((ticket, ticketIdx) => {
-                    const actualTickets = generateCompoundTickets(ticket);
                     const compound = isCompoundTicket(ticket, rule);
-                    let hasPrize = false;
-                    const allMatches = actualTickets.map(t => {
-                      const matchResult = calculateMatches(t);
-                      if (matchResult.matches.length > 0) hasPrize = true;
-                      return matchResult;
-                    });
-
-                    if (!hasPrize) return null;
+                    const matchResult = calculateMatches(ticket);
+                    if (matchResult.matches.length === 0) return null;
 
                     return (
                       <div key={ticketIdx} className="card overflow-hidden">
@@ -791,97 +760,81 @@ export default function MatchResultPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            {allMatches.some(m => m.prizeLevel) && (
-                              <span className={cn("rounded-full px-3 py-1 text-xs font-bold", 
-                                PRIZE_COLORS[allMatches.find(m => m.prizeLevel)?.prizeLevel || ""]?.bg,
-                                PRIZE_COLORS[allMatches.find(m => m.prizeLevel)?.prizeLevel || ""]?.text)}>
-                                {allMatches.find(m => m.prizeLevel)?.prizeLevel}
+                            {matchResult.prizeLevel && (
+                              <span className={cn("rounded-full px-3 py-1 text-xs font-bold",
+                                PRIZE_COLORS[matchResult.prizeLevel]?.bg,
+                                PRIZE_COLORS[matchResult.prizeLevel]?.text)}>
+                                {matchResult.prizeLevel}
                               </span>
                             )}
                             <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-300">
-                              中奖{allMatches.reduce((sum, m) => sum + m.matches.length, 0)}次
+                              中奖{matchResult.total}次
                             </span>
                           </div>
                         </div>
 
                         <div className="divide-y divide-ink-700/60">
-                          {actualTickets.map((actualTicket, actualIdx) => {
-                            const matchResult = calculateMatches(actualTicket);
-                            if (matchResult.matches.length === 0) return null;
-
+                          {matchResult.matches.slice(0, 30).map((m, i) => {
+                            const prize = getPrizeLevel(m.frontMatch, m.backMatch);
+                            const item = m.item as LotteryItem;
                             return (
-                              <div key={actualIdx}>
-                                {compound && (
-                                  <div className="bg-ink-900/30 px-4 py-2">
+                              <div key={i} className="px-4 py-3 hover:bg-ink-900/30">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-4">
+                                    <span className="font-mono text-sm text-zinc-600 dark:text-zinc-400">
+                                      {m.term}期
+                                    </span>
                                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                      组合 {actualIdx + 1}: {actualTicket.front.join(' ')} + {actualTicket.back.join(' ')}
+                                      {m.date}
                                     </span>
                                   </div>
-                                )}
-                                {matchResult.matches.slice(0, 30).map((m, i) => {
-                                  const prize = getPrizeLevel(m.frontMatch, m.backMatch);
-                                  const item = m.item as LotteryItem;
-                                  return (
-                                    <div key={i} className="px-4 py-3 hover:bg-ink-900/30">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-4">
-                                          <span className="font-mono text-sm text-zinc-600 dark:text-zinc-400">
-                                            {m.term}期
-                                          </span>
-                                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                            {m.date}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                          <div className="flex items-center gap-2">
-                                            <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                              m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
-                                              前{m.frontMatch}
-                                            </span>
-                                            <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                              m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
-                                              后{m.backMatch}
-                                            </span>
-                                          </div>
-                                          {prize && (
-                                            <span className={cn("font-bold text-sm px-2 py-0.5 rounded", prize.bg, prize.text)}>
-                                              {prize.level}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex flex-wrap items-center gap-1.5 pl-8">
-                                        {item.front_numbers.map((n, ni) => (
-                                          <LotteryBall
-                                            key={`fn-${ni}`}
-                                            number={n}
-                                            variant="front"
-                                            size="xs"
-                                            highlight={actualTicket.front.includes(n)}
-                                          />
-                                        ))}
-                                        <span className="mx-2 h-3 w-px bg-ink-600" />
-                                        {item.back_numbers.map((n, ni) => (
-                                          <LotteryBall
-                                            key={`bn-${ni}`}
-                                            number={n}
-                                            variant="back"
-                                            size="xs"
-                                            highlight={actualTicket.back.includes(n)}
-                                          />
-                                        ))}
-                                      </div>
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn("rounded-md px-2 py-0.5 text-xs",
+                                        m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
+                                        前{m.frontMatch}
+                                      </span>
+                                      <span className={cn("rounded-md px-2 py-0.5 text-xs",
+                                        m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
+                                        后{m.backMatch}
+                                      </span>
                                     </div>
-                                  );
-                                })}
-                                {matchResult.matches.length > 30 && (
-                                  <div className="px-4 py-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
-                                    还有 {matchResult.matches.length - 30} 条中奖记录...
+                                    {prize && (
+                                      <span className={cn("font-bold text-sm px-2 py-0.5 rounded", prize.bg, prize.text)}>
+                                        {prize.level}
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5 pl-8">
+                                  {item.front_numbers.map((n, ni) => (
+                                    <LotteryBall
+                                      key={`fn-${ni}`}
+                                      number={n}
+                                      variant="front"
+                                      size="xs"
+                                      highlight={ticket.front.includes(n)}
+                                    />
+                                  ))}
+                                  <span className="mx-2 h-3 w-px bg-ink-600" />
+                                  {item.back_numbers.map((n, ni) => (
+                                    <LotteryBall
+                                      key={`bn-${ni}`}
+                                      number={n}
+                                      variant="back"
+                                      size="xs"
+                                      highlight={ticket.back.includes(n)}
+                                    />
+                                  ))}
+                                </div>
                               </div>
                             );
                           })}
+                          {matchResult.matches.length > 30 && (
+                            <div className="px-4 py-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                              还有 {matchResult.matches.length - 30} 条中奖记录...
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
