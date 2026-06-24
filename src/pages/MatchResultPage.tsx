@@ -5,6 +5,8 @@ import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URL, generateTickets } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
+import ThemeToggle from "@/components/ThemeToggle";
+import { isDarkMode } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
 type RangeOption = 30 | 50 | 100 | "all";
@@ -28,15 +30,23 @@ const PRIZE_COLORS: Record<string, { bg: string; text: string; border: string }>
   "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
 };
 
-/** 导出号码为图片 */
+/** 导出号码为图片（颜色随当前主题模式变化） */
 const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof LOTTERY_RULES.dlt) => {
   const isDlt = type === "dlt";
+  const dark = isDarkMode();
   const padding = 40;
   const ballSize = 36;
   const ballGap = 8;
   const rowGap = 20;
   const separatorWidth = 30;
   const labelHeight = 60;
+
+  // 主题相关颜色
+  const bgColor = dark ? "#0a0a12" : "#ffffff";
+  const titleColor = dark ? "#f4f4f5" : "#27272a";
+  const indexColor = dark ? "#a1a1aa" : "#71717a";
+  const separatorColor = dark ? "#3a3a4a" : "#d1d1d8";
+  const compoundTagColor = "#f59e0b";
 
   const frontBalls = rule.frontCount;
   const backBalls = rule.backCount;
@@ -68,10 +78,10 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
   const ctx = canvas.getContext("2d")!;
   ctx.scale(2, 2);
 
-  ctx.fillStyle = "#1a1a2e";
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = "#e5e5e5";
+  ctx.fillStyle = titleColor;
   ctx.font = "bold 24px sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(rule.name, width / 2, 36);
@@ -126,14 +136,14 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
       });
 
       // 期号
-      ctx.fillStyle = "#71717a";
+      ctx.fillStyle = indexColor;
       ctx.font = "14px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
       ctx.fillText(`${ticketIdx + 1}`, 8, currentY + ballSize / 2 + 4);
 
       // 复式标签
-      ctx.fillStyle = "#f59e0b";
+      ctx.fillStyle = compoundTagColor;
       ctx.font = "12px sans-serif";
       ctx.textAlign = "right";
       ctx.fillText("复式", width - 8, currentY + ballSize / 2 + 4);
@@ -155,7 +165,7 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
 
       // 分隔符
       const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
-      ctx.fillStyle = "#52525b";
+      ctx.fillStyle = separatorColor;
       ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
 
       // 后区球
@@ -165,7 +175,7 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
         drawBall(x, ballY, num, false);
       });
 
-      ctx.fillStyle = "#71717a";
+      ctx.fillStyle = indexColor;
       ctx.font = "14px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
@@ -410,10 +420,10 @@ export default function MatchResultPage() {
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div>
-              <h1 className="font-serif text-lg font-bold text-zinc-900">
+              <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
                 {rule.name}对比分析
               </h1>
-              <p className="text-[10px] text-zinc-500">选号与历史数据匹配</p>
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400">选号与历史数据匹配</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -422,6 +432,7 @@ export default function MatchResultPage() {
                 最高: {bestPrize}
               </span>
             )}
+            <ThemeToggle />
             <div className="flex rounded-lg border border-ink-600 overflow-hidden">
               <button
                 type="button"
@@ -431,7 +442,7 @@ export default function MatchResultPage() {
                 }}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
-                  type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
+                  type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300"
                 )}
               >
                 大乐透
@@ -444,7 +455,7 @@ export default function MatchResultPage() {
                 }}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
-                  type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800"
+                  type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300"
                 )}
               >
                 双色球
@@ -458,7 +469,7 @@ export default function MatchResultPage() {
         {loading ? (
           <div className="card text-center py-12">
             <RefreshCw className="mx-auto h-12 w-12 animate-spin text-gold mb-4" />
-            <p className="text-zinc-500">正在加载{rule.name}开奖数据...</p>
+            <p className="text-zinc-500 dark:text-zinc-400">正在加载{rule.name}开奖数据...</p>
           </div>
         ) : error ? (
           <div className="card p-4">
@@ -495,7 +506,7 @@ export default function MatchResultPage() {
         ) : !data ? (
           <div className="card p-8 text-center">
             <Target className="mx-auto h-12 w-12 text-zinc-400 mb-4" />
-            <p className="mb-6 text-zinc-500">暂无{rule.name}开奖数据</p>
+            <p className="mb-6 text-zinc-500 dark:text-zinc-400">暂无{rule.name}开奖数据</p>
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
@@ -527,7 +538,7 @@ export default function MatchResultPage() {
             {source && (
               <div className="card p-3 mb-4">
                 {source === "remote" ? (
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 dark:text-zinc-300">
                     <Cloud className="h-3.5 w-3.5 text-indigo-400" />
                     <span>数据来源：开源仓库</span>
                     <a
@@ -539,7 +550,7 @@ export default function MatchResultPage() {
                       get_lottery_data
                     </a>
                     {data.generated_at && (
-                      <span className="text-zinc-600">· 更新于 {data.generated_at}</span>
+                      <span className="text-zinc-600 dark:text-zinc-500">· 更新于 {data.generated_at}</span>
                     )}
                   </div>
                 ) : (
@@ -554,7 +565,7 @@ export default function MatchResultPage() {
             <div className="space-y-6">
               <div className="card p-4">
                 <div className="mb-4 flex flex-wrap items-center gap-4">
-                  <span className="text-sm font-medium text-zinc-700">选择查询范围:</span>
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">选择查询范围:</span>
                   <div className="flex gap-2">
                     {RANGE_OPTIONS.map((option) => (
                       <button
@@ -564,7 +575,7 @@ export default function MatchResultPage() {
                           "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                           selectedRange === option.value
                             ? "bg-crimson text-white"
-                            : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
+                            : "bg-ink-800 text-zinc-400 hover:bg-ink-700 dark:text-zinc-300"
                         )}
                         onClick={() => setSelectedRange(option.value)}
                       >
@@ -572,7 +583,7 @@ export default function MatchResultPage() {
                       </button>
                     ))}
                   </div>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
                     共 {getFilteredData().length} 期数据
                   </span>
                 </div>
@@ -597,7 +608,7 @@ export default function MatchResultPage() {
                                 onChange={() => handleToggleCompound(ticketIdx)}
                                 className="rounded border-ink-600 bg-ink-800 text-crimson focus:ring-crimson/20"
                               />
-                              <span className="text-xs text-zinc-500">复式</span>
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">复式</span>
                               {ticket.isCompound && (
                                 <span className="rounded bg-crimson/20 px-2 py-0.5 text-xs text-crimson">
                                   {getTotalCombinations(ticket)}注
@@ -610,7 +621,7 @@ export default function MatchResultPage() {
                                 已选完
                               </span>
                             ) : (
-                              <span className="text-xs text-zinc-500">
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                 请选择 {ticket.isCompound ? `至少${rule.frontCount}个` : rule.frontCount}个{rule.frontLabel}和{ticket.isCompound ? `至少${rule.backCount}个` : rule.backCount}个{rule.backLabel}
                               </span>
                             )}
@@ -628,7 +639,7 @@ export default function MatchResultPage() {
                               <button
                                 type="button"
                                 onClick={() => handleRemoveTicket(ticketIdx)}
-                                className="btn btn-sm text-zinc-500 hover:text-crimson"
+                                className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
                               >
                                 <Minus className="h-3 w-3" />
                               </button>
@@ -638,7 +649,7 @@ export default function MatchResultPage() {
 
                         <div className="mb-3">
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="text-xs font-medium text-zinc-500">
+                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                               {rule.frontLabel} ({ticket.front.length}/{ticket.isCompound ? rule.frontMax : rule.frontCount})
                             </span>
                           </div>
@@ -651,7 +662,7 @@ export default function MatchResultPage() {
                                   "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
                                   ticket.front.includes(num)
                                     ? "bg-crimson text-white"
-                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
+                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700 dark:text-zinc-300"
                                 )}
                                 onClick={() => handleToggleNumber(ticketIdx, "front", num)}
                               >
@@ -663,7 +674,7 @@ export default function MatchResultPage() {
 
                         <div>
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="text-xs font-medium text-zinc-500">
+                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                               {rule.backLabel} ({ticket.back.length}/{ticket.isCompound ? rule.backMax : rule.backCount})
                             </span>
                           </div>
@@ -676,7 +687,7 @@ export default function MatchResultPage() {
                                   "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
                                   ticket.back.includes(num)
                                     ? "bg-indigo text-white"
-                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700"
+                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700 dark:text-zinc-300"
                                 )}
                                 onClick={() => handleToggleNumber(ticketIdx, "back", num)}
                               >
@@ -693,7 +704,7 @@ export default function MatchResultPage() {
                     <button
                       type="button"
                       onClick={handleAddTicket}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-600 py-3 text-zinc-500 hover:border-crimson hover:text-crimson transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-600 py-3 text-zinc-500 hover:border-crimson hover:text-crimson transition-colors dark:text-zinc-400"
                     >
                       <Plus className="h-4 w-4" />
                       添加一注
@@ -701,7 +712,7 @@ export default function MatchResultPage() {
                     <button
                       type="button"
                       onClick={handleClearAll}
-                      className="btn btn-sm text-zinc-500 hover:text-crimson"
+                      className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
                     >
                       <Minus className="h-3 w-3" />
                       清空
@@ -710,7 +721,7 @@ export default function MatchResultPage() {
                       <button
                         type="button"
                         onClick={() => exportAsImage(customTickets, type, rule)}
-                        className="btn btn-sm text-zinc-500 hover:text-indigo"
+                        className="btn btn-sm text-zinc-500 hover:text-indigo dark:text-zinc-400"
                       >
                         <Download className="h-3 w-3" />
                         导出
@@ -723,8 +734,8 @@ export default function MatchResultPage() {
               {!allTicketsComplete ? (
                 <div className="card text-center py-8">
                   <BarChart3 className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
-                  <p className="text-zinc-500 mb-2">请先选择完整的号码</p>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-zinc-500 dark:text-zinc-400 mb-2">请先选择完整的号码</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">
                     选完 {rule.frontCount} 个{rule.frontLabel}和 {rule.backCount} 个{rule.backLabel}后自动开始对比
                   </p>
                 </div>
@@ -736,8 +747,8 @@ export default function MatchResultPage() {
                         <Trophy className="h-5 w-5 text-gold" />
                       </div>
                       <div>
-                        <p className="text-xs text-zinc-500">中奖次数</p>
-                        <p className="text-xl font-bold text-zinc-900">{grandTotal}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">中奖次数</p>
+                        <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{grandTotal}</p>
                       </div>
                     </div>
                     <div className="card flex items-center gap-3 p-4">
@@ -745,8 +756,8 @@ export default function MatchResultPage() {
                         <span className={cn("font-serif text-lg font-bold", bestPrize && PRIZE_COLORS[bestPrize]?.text || "text-yellow-600")}>奖</span>
                       </div>
                       <div>
-                        <p className="text-xs text-zinc-500">最高奖项</p>
-                        <p className="text-xl font-bold text-zinc-900">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">最高奖项</p>
+                        <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
                           {bestPrize || "-"}
                         </p>
                       </div>
@@ -756,8 +767,8 @@ export default function MatchResultPage() {
                         <TrendingDown className="h-5 w-5 text-indigo" />
                       </div>
                       <div>
-                        <p className="text-xs text-zinc-500">查询期数</p>
-                        <p className="text-xl font-bold text-zinc-900">{getFilteredData().length}期</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">查询期数</p>
+                        <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{getFilteredData().length}期</p>
                       </div>
                     </div>
                     <div className="card flex items-center gap-3 p-4">
@@ -765,8 +776,8 @@ export default function MatchResultPage() {
                         <span className="font-serif text-lg font-bold text-green">注</span>
                       </div>
                       <div>
-                        <p className="text-xs text-zinc-500">投注数量</p>
-                        <p className="text-xl font-bold text-zinc-900">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">投注数量</p>
+                        <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
                           {customTickets.reduce((sum, t) => sum + getTotalCombinations(t), 0)}注
                         </p>
                       </div>
@@ -809,7 +820,7 @@ export default function MatchResultPage() {
                                 {allMatches.find(m => m.prizeLevel)?.prizeLevel}
                               </span>
                             )}
-                            <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400">
+                            <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-300">
                               中奖{allMatches.reduce((sum, m) => sum + m.matches.length, 0)}次
                             </span>
                           </div>
@@ -824,7 +835,7 @@ export default function MatchResultPage() {
                               <div key={actualIdx}>
                                 {ticket.isCompound && (
                                   <div className="bg-ink-900/30 px-4 py-2">
-                                    <span className="text-xs text-zinc-500">
+                                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                       组合 {actualIdx + 1}: {actualTicket.front.join(' ')} + {actualTicket.back.join(' ')}
                                     </span>
                                   </div>
@@ -836,21 +847,21 @@ export default function MatchResultPage() {
                                     <div key={i} className="px-4 py-3 hover:bg-ink-900/30">
                                       <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center gap-4">
-                                          <span className="font-mono text-sm text-zinc-600">
+                                          <span className="font-mono text-sm text-zinc-600 dark:text-zinc-400">
                                             {m.term}期
                                           </span>
-                                          <span className="text-xs text-zinc-500">
+                                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                             {m.date}
                                           </span>
                                         </div>
                                         <div className="flex items-center gap-4">
                                           <div className="flex items-center gap-2">
                                             <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                              m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500")}>
+                                              m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
                                               前{m.frontMatch}
                                             </span>
                                             <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                              m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500")}>
+                                              m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
                                               后{m.backMatch}
                                             </span>
                                           </div>
@@ -886,7 +897,7 @@ export default function MatchResultPage() {
                                   );
                                 })}
                                 {matchResult.matches.length > 30 && (
-                                  <div className="px-4 py-2 text-center text-xs text-zinc-500">
+                                  <div className="px-4 py-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
                                     还有 {matchResult.matches.length - 30} 条中奖记录...
                                   </div>
                                 )}
@@ -901,7 +912,7 @@ export default function MatchResultPage() {
                   {customTickets.length > 0 && grandTotal === 0 && (
                     <div className="card text-center py-8">
                       <Target className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
-                      <p className="text-zinc-500">未查询到中奖记录</p>
+                      <p className="text-zinc-500 dark:text-zinc-400">未查询到中奖记录</p>
                     </div>
                   )}
                 </>

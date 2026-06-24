@@ -12,6 +12,18 @@
       rel="stylesheet"
     />
     <title>彩运 · 开奖历史与走势</title>
+    <script>
+      // 在 React 渲染前应用主题，避免深色模式闪烁
+      (function () {
+        try {
+          var stored = localStorage.getItem('cai-yun-theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (stored === 'dark' || (!stored && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <script type="module">
       if (import.meta.hot?.on) {
         import.meta.hot.on('vite:error', (error) => {

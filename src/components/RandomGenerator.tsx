@@ -4,6 +4,7 @@ import { Shuffle, Trash2, ArrowRight, Download } from "lucide-react";
 import type { LotteryType, RandomTicket } from "@/types/lottery";
 import { LOTTERY_RULES, generateTickets } from "@/utils/lottery";
 import LotteryBall from "./LotteryBall";
+import { isDarkMode } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
 interface RandomGeneratorProps {
@@ -12,16 +13,23 @@ interface RandomGeneratorProps {
 
 const COUNT_OPTIONS = [1, 5, 10];
 
-/** 导出号码为图片 */
+/** 导出号码为图片（颜色随当前主题模式变化） */
 const exportAsImage = (tickets: RandomTicket[], type: LotteryType) => {
   const rule = LOTTERY_RULES[type];
   const isDlt = type === "dlt";
+  const dark = isDarkMode();
   const padding = 40;
   const ballSize = 36;
   const ballGap = 8;
   const rowGap = 20;
   const separatorWidth = 30;
   const labelHeight = 60;
+
+  // 主题相关颜色
+  const bgColor = dark ? "#0a0a12" : "#ffffff";
+  const titleColor = dark ? "#f4f4f5" : "#27272a";
+  const indexColor = dark ? "#a1a1aa" : "#71717a";
+  const separatorColor = dark ? "#3a3a4a" : "#d1d1d8";
 
   // 计算每行球的数量（前区和后区）
   const frontBalls = rule.frontCount;
@@ -41,11 +49,11 @@ const exportAsImage = (tickets: RandomTicket[], type: LotteryType) => {
   ctx.scale(2, 2);
 
   // 绘制背景
-  ctx.fillStyle = "#1a1a2e";
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, width, height);
 
   // 绘制标题
-  ctx.fillStyle = "#e5e5e5";
+  ctx.fillStyle = titleColor;
   ctx.font = "bold 24px sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(rule.name, width / 2, 36);
@@ -83,7 +91,7 @@ const exportAsImage = (tickets: RandomTicket[], type: LotteryType) => {
 
     // 分隔符
     const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
-    ctx.fillStyle = "#52525b";
+    ctx.fillStyle = separatorColor;
     ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
 
     // 后区球
@@ -114,7 +122,7 @@ const exportAsImage = (tickets: RandomTicket[], type: LotteryType) => {
     });
 
     // 期号
-    ctx.fillStyle = "#71717a";
+    ctx.fillStyle = indexColor;
     ctx.font = "14px sans-serif";
     ctx.textAlign = "left";
     ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
@@ -154,10 +162,10 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shuffle className="h-4 w-4 text-gold" />
-          <h3 className="font-serif text-base font-bold text-zinc-900">
+          <h3 className="font-serif text-base font-bold text-zinc-900 dark:text-zinc-100">
             随机生成
           </h3>
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {rule.frontCount}+{rule.backCount}
           </span>
         </div>
@@ -166,7 +174,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
             <button
               type="button"
               onClick={handleExport}
-              className="text-zinc-500 transition-colors hover:text-indigo"
+              className="text-zinc-500 transition-colors hover:text-indigo dark:text-zinc-400"
               aria-label="导出图片"
             >
               <Download className="h-4 w-4" />
@@ -174,7 +182,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
             <button
               type="button"
               onClick={handleClear}
-              className="text-zinc-500 transition-colors hover:text-crimson"
+              className="text-zinc-500 transition-colors hover:text-crimson dark:text-zinc-400"
               aria-label="清空"
             >
               <Trash2 className="h-4 w-4" />
@@ -203,7 +211,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
       </div>
 
       {tickets.length === 0 ? (
-        <div className="flex h-20 items-center justify-center rounded-xl border border-dashed border-ink-700 text-sm text-zinc-600">
+        <div className="flex h-20 items-center justify-center rounded-xl border border-dashed border-ink-700 text-sm text-zinc-600 dark:text-zinc-400">
           点击「生成」获取随机号码
         </div>
       ) : (
@@ -214,7 +222,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
               className="flex items-center gap-2 rounded-xl border border-ink-700/60 bg-ink-900/50 px-3 py-2 animate-pop-in"
               style={{ animationDelay: `${idx * 40}ms` }}
             >
-              <span className="w-6 shrink-0 text-center font-mono text-xs text-zinc-500">
+              <span className="w-6 shrink-0 text-center font-mono text-xs text-zinc-500 dark:text-zinc-400">
                 {idx + 1}
               </span>
               <div className="flex flex-wrap items-center gap-1.5">

@@ -23,7 +23,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 text-center text-xs text-zinc-600 sm:px-6">
+      <footer className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 text-center text-xs text-zinc-600 dark:text-zinc-500 sm:px-6">
         <p>
           数据开源 · 仅供学习研究，不构成任何投注建议 · 请理性购彩
         </p>

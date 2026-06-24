@@ -12,6 +12,53 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color-scheme: light;
+
+  /* 浅色主题 ink 色阶（白→浅灰），使用 RGB 通道以支持透明度修饰符 */
+  --ink-950: 255 255 255;
+  --ink-900: 255 255 255;
+  --ink-850: 255 255 255;
+  --ink-800: 244 244 247;
+  --ink-700: 229 229 234;
+  --ink-600: 209 209 216;
+  --ink-500: 161 161 170;
+
+  /* 主题相关语义色 */
+  --bg-base: #ffffff;
+  --bg-root: #ffffff;
+  --text-base: #27272a;
+  --scrollbar-track: #f4f4f7;
+  --scrollbar-thumb: #d1d1d8;
+  --scrollbar-thumb-hover: #a1a1aa;
+  --skeleton-from: #f4f4f7;
+  --skeleton-mid: #e5e5ea;
+  --skeleton-to: #f4f4f7;
+  --glow-crimson: rgba(230, 57, 70, 0.10);
+  --glow-gold: rgba(212, 175, 55, 0.08);
+  --glow-indigo: rgba(58, 134, 255, 0.06);
+}
+
+html.dark {
+  color-scheme: dark;
+  --ink-950: 10 10 18;
+  --ink-900: 18 18 28;
+  --ink-850: 22 22 31;
+  --ink-800: 28 28 40;
+  --ink-700: 42 42 56;
+  --ink-600: 58 58 74;
+  --ink-500: 107 107 122;
+
+  --bg-base: #0a0a12;
+  --bg-root: #0a0a12;
+  --text-base: #e5e5e5;
+  --scrollbar-track: #12121c;
+  --scrollbar-thumb: #2a2a38;
+  --scrollbar-thumb-hover: #3a3a4a;
+  --skeleton-from: #1c1c28;
+  --skeleton-mid: #2a2a38;
+  --skeleton-to: #1c1c28;
+  --glow-crimson: rgba(230, 57, 70, 0.18);
+  --glow-gold: rgba(212, 175, 55, 0.14);
+  --glow-indigo: rgba(58, 134, 255, 0.12);
 }
 
 html,
@@ -22,18 +69,20 @@ body,
 
 body {
   margin: 0;
-  background-color: #ffffff;
-  color: #27272a;
+  background-color: var(--bg-base);
+  color: var(--text-base);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* 背景氛围：白色 + 微妙彩色光晕 */
+/* 背景氛围：浅色为白色 + 微妙彩色光晕，深色为深底 + 加强光晕 */
 #root {
-  background-color: #ffffff;
+  background-color: var(--bg-root);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(230, 57, 70, 0.10), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(212, 175, 55, 0.08), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(58, 134, 255, 0.06), transparent 55%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--glow-crimson), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, var(--glow-gold), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, var(--glow-indigo), transparent 55%);
   background-attachment: fixed;
+  transition: background-color 0.3s ease;
 }
 
 /* 自定义滚动条 */
@@ -42,20 +91,20 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #f4f4f7;
+  background: var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #d1d1d8;
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
-  border: 2px solid #f4f4f7;
+  border: 2px solid var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
+  background: var(--scrollbar-thumb-hover);
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-ink-700 bg-white shadow-sm;
+    @apply rounded-2xl border border-ink-700 bg-ink-900 shadow-sm;
   }
 
   .btn {
@@ -65,7 +114,7 @@ body {
     @apply btn bg-crimson text-white shadow-glow hover:bg-crimson-600 active:scale-95;
   }
   .btn-ghost {
-    @apply btn border border-ink-600 bg-ink-800/60 text-zinc-700 hover:border-crimson/60 hover:text-zinc-900;
+    @apply btn border border-ink-600 bg-ink-800/60 text-zinc-700 hover:border-crimson/60 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100;
   }
   .btn-gold {
     @apply btn bg-gold text-zinc-900 hover:bg-gold-300 active:scale-95;
@@ -75,7 +124,7 @@ body {
     @apply inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-800/60 p-1;
   }
   .seg-item {
-    @apply rounded-full px-3 py-1.5 text-sm font-medium text-zinc-500 transition-all duration-200 hover:text-zinc-900;
+    @apply rounded-full px-3 py-1.5 text-sm font-medium text-zinc-500 transition-all duration-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100;
   }
   .seg-item-active {
     @apply bg-crimson text-white shadow-glow;
@@ -84,7 +133,7 @@ body {
 
 /* 骨架屏 shimmer */
 .skeleton {
-  background: linear-gradient(90deg, #f4f4f7 25%, #e5e5ea 37%, #f4f4f7 63%);
+  background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-mid) 37%, var(--skeleton-to) 63%);
   background-size: 400% 100%;
   @apply animate-shimmer;
 }

@@ -42,8 +42,8 @@ export default function LotteryList({
   if (!data || data.items.length === 0) {
     return (
       <div className="card flex flex-col items-center justify-center gap-2 py-16 text-center">
-        <p className="text-zinc-400">暂无开奖数据</p>
-        <p className="text-xs text-zinc-600">
+        <p className="text-zinc-400 dark:text-zinc-300">暂无开奖数据</p>
+        <p className="text-xs text-zinc-600 dark:text-zinc-500">
           可点击右上角刷新或手动上传 JSON 文件
         </p>
       </div>
@@ -54,7 +54,7 @@ export default function LotteryList({
     <div className="flex flex-col gap-3">
       <div className="card overflow-hidden">
         {/* 表头 */}
-        <div className="flex items-center gap-3 border-b border-ink-700/70 bg-ink-900/60 px-4 py-2.5 text-xs font-medium text-zinc-500">
+        <div className="flex items-center gap-3 border-b border-ink-700/70 bg-ink-900/60 px-4 py-2.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
           <span className="w-20 shrink-0 font-mono">期号</span>
           <span className="hidden w-24 shrink-0 sm:block">开奖日期</span>
           <span className="flex flex-1 items-center gap-2">
@@ -66,7 +66,7 @@ export default function LotteryList({
             >
               {rule.frontLabel}
             </span>
-            <span className="text-zinc-700">·</span>
+            <span className="text-zinc-700 dark:text-zinc-500">·</span>
             <span
               className={cn(
                 "font-medium",
@@ -90,7 +90,7 @@ export default function LotteryList({
             <span className="w-20 shrink-0 font-mono text-sm text-gold-300">
               {item.term}
             </span>
-            <span className="hidden w-24 shrink-0 font-mono text-xs text-zinc-500 sm:block">
+            <span className="hidden w-24 shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400 sm:block">
               {item.draw_time}
             </span>
             <div className="flex flex-1 flex-wrap items-center gap-1.5">
@@ -106,12 +106,12 @@ export default function LotteryList({
         ))}
       </div>
 
-      <div className="flex items-center justify-between px-1 text-xs text-zinc-500">
+      <div className="flex items-center justify-between px-1 text-xs text-zinc-500 dark:text-zinc-400">
         <span>
-          共 <span className="font-mono text-zinc-700">{total}</span> 条记录
+          共 <span className="font-mono text-zinc-700 dark:text-zinc-300">{total}</span> 条记录
         </span>
         <span>
-          第 <span className="font-mono text-zinc-700">{currentPage}</span> /{" "}
+          第 <span className="font-mono text-zinc-700 dark:text-zinc-300">{currentPage}</span> /{" "}
           {totalPages} 页
         </span>
       </div>

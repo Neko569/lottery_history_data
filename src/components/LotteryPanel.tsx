@@ -64,7 +64,7 @@ export default function LotteryPanel({
             <h2 className={cn("font-serif text-lg font-bold", accentText)}>
               {rule.name}
             </h2>
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
               {rule.frontLabel} {rule.frontCount}/{rule.frontMax} ·{" "}
               {rule.backLabel} {rule.backCount}/{rule.backMax}
             </p>
@@ -160,7 +160,7 @@ function DataSourceBadge({
 }) {
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-ink-700/60 bg-ink-900/50 px-3 py-2 text-xs text-zinc-400">
+      <div className="flex items-center gap-2 rounded-lg border border-ink-700/60 bg-ink-900/50 px-3 py-2 text-xs text-zinc-400 dark:text-zinc-300">
         <RefreshCw className="h-3.5 w-3.5 animate-spin text-gold" />
         正在加载数据…
       </div>
@@ -178,7 +178,7 @@ function DataSourceBadge({
 
   if (source === "remote") {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-700/60 bg-ink-900/50 px-3 py-2 text-xs text-zinc-400">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-700/60 bg-ink-900/50 px-3 py-2 text-xs text-zinc-400 dark:text-zinc-300">
         <Cloud className="h-3.5 w-3.5 text-indigo-400" />
         <span>数据来源：开源仓库</span>
         <a
@@ -190,7 +190,7 @@ function DataSourceBadge({
           get_lottery_data
         </a>
         {generatedAt && (
-          <span className="text-zinc-600">· 更新于 {generatedAt}</span>
+          <span className="text-zinc-600 dark:text-zinc-500">· 更新于 {generatedAt}</span>
         )}
       </div>
     );

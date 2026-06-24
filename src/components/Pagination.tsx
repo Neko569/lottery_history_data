@@ -15,7 +15,7 @@ export default function Pagination({
 }: PaginationProps) {
   if (totalPages <= 1) {
     return (
-      <div className="flex items-center justify-center py-4 text-sm text-zinc-500">
+      <div className="flex items-center justify-center py-4 text-sm text-zinc-500 dark:text-zinc-400">
         {totalPages === 1 ? "共 1 页" : "暂无数据"}
       </div>
     );
@@ -37,7 +37,7 @@ export default function Pagination({
 
       {pages.map((p, i) =>
         p === "..." ? (
-          <span key={`gap-${i}`} className="px-2 text-zinc-500">
+          <span key={`gap-${i}`} className="px-2 text-zinc-500 dark:text-zinc-400">
             …
           </span>
         ) : (
@@ -49,7 +49,7 @@ export default function Pagination({
               "h-9 min-w-9 rounded-full px-2 text-sm font-medium transition-all duration-200",
               p === currentPage
                 ? "bg-crimson text-white shadow-glow"
-                : "border border-ink-600 bg-ink-800/60 text-zinc-700 hover:border-crimson/50 hover:text-zinc-900",
+                : "border border-ink-600 bg-ink-800/60 text-zinc-700 hover:border-crimson/50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100",
             )}
           >
             {p}
