@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package } from "lucide-react";
+import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URL, generateTickets, generateTicketWithCounts } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
-import ThemeToggle from "@/components/ThemeToggle";
 import { isDarkMode } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
@@ -444,22 +443,13 @@ export default function MatchResultPage() {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-ink-700/60 bg-ink-950/80 backdrop-blur-xl">
+      <div className="border-b border-ink-700/60 bg-ink-950/40">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="btn-ghost h-9 w-9 p-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div>
-              <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                {rule.name}对比分析
-              </h1>
-              <p className="text-[10px] text-zinc-500 dark:text-zinc-400">选号与历史数据匹配</p>
-            </div>
+          <div>
+            <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
+              {rule.name}对比分析
+            </h1>
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">选号与历史数据匹配</p>
           </div>
           <div className="flex items-center gap-2">
             {bestPrize && (
@@ -467,7 +457,6 @@ export default function MatchResultPage() {
                 最高: {bestPrize}
               </span>
             )}
-            <ThemeToggle />
             <div className="flex rounded-lg border border-ink-600 overflow-hidden">
               <button
                 type="button"
@@ -498,7 +487,7 @@ export default function MatchResultPage() {
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
         {loading ? (
