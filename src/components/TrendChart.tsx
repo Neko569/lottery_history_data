@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { LotteryData, LotteryType } from "@/types/lottery";
 import { LOTTERY_RULES, TREND_PERIOD_OPTIONS } from "@/utils/lottery";
+import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
 interface TrendChartProps {
@@ -38,9 +39,20 @@ const TREND_TYPE_LABELS: Record<TrendType, string> = {
 
 export default function TrendChart({ type, data }: TrendChartProps) {
   const rule = LOTTERY_RULES[type];
+  const { isDark } = useTheme();
   const [period, setPeriod] = useState(30);
   const [area, setArea] = useState<"front" | "back">("front");
   const [trendType, setTrendType] = useState<TrendType>("position");
+
+  // 图表主题色
+  const chartColors = {
+    grid: isDark ? "#2a2a38" : "#E5E5EA",
+    axisLine: isDark ? "#3a3a4a" : "#D1D1D8",
+    tick: "#71717a",
+    tooltipBg: isDark ? "#16161f" : "#FFFFFF",
+    tooltipBorder: isDark ? "#2a2a38" : "#E5E5EA",
+    tooltipItem: isDark ? "#e5e5e5" : "#27272a",
+  };
 
   const count = area === "front" ? rule.frontCount : rule.backCount;
   const max = area === "front" ? rule.frontMax : rule.backMax;
@@ -157,10 +169,10 @@ export default function TrendChart({ type, data }: TrendChartProps) {
     <div className="card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="font-serif text-base font-bold text-zinc-900">
+          <h3 className="font-serif text-base font-bold text-zinc-900 dark:text-zinc-100">
             号码走势
           </h3>
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {area === "front" ? rule.frontLabel : rule.backLabel} · {count} 球
           </span>
         </div>
@@ -224,7 +236,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
       </div>
 
       {chartData.length === 0 ? (
-        <div className="flex h-64 items-center justify-center text-sm text-zinc-500">
+        <div className="flex h-64 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
           暂无走势数据
         </div>
       ) : (
@@ -234,32 +246,32 @@ export default function TrendChart({ type, data }: TrendChartProps) {
               data={chartData}
               margin={{ top: 8, right: 12, left: -8, bottom: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
               <XAxis
                 dataKey="term"
-                tick={{ fill: "#71717a", fontSize: 11, fontFamily: "JetBrains Mono" }}
+                tick={{ fill: chartColors.tick, fontSize: 11, fontFamily: "JetBrains Mono" }}
                 tickLine={false}
-                axisLine={{ stroke: "#D1D1D8" }}
+                axisLine={{ stroke: chartColors.axisLine }}
                 interval="preserveStartEnd"
                 minTickGap={20}
               />
               <YAxis
                 domain={getYAxisDomain()}
-                tick={{ fill: "#71717a", fontSize: 11, fontFamily: "JetBrains Mono" }}
+                tick={{ fill: chartColors.tick, fontSize: 11, fontFamily: "JetBrains Mono" }}
                 tickLine={false}
-                axisLine={{ stroke: "#D1D1D8" }}
+                axisLine={{ stroke: chartColors.axisLine }}
                 width={32}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#FFFFFF",
-                  border: "1px solid #E5E5EA",
+                  backgroundColor: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
                   borderRadius: 12,
                   fontSize: 12,
                   boxShadow: "0 8px 24px -8px rgba(0,0,0,0.15)",
                 }}
                 labelStyle={{ color: "#B8932B", fontFamily: "JetBrains Mono" }}
-                itemStyle={{ color: "#27272a" }}
+                itemStyle={{ color: chartColors.tooltipItem }}
               />
               <Legend
                 wrapperStyle={{ fontSize: 12, paddingTop: 8 }}

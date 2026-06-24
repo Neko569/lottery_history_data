@@ -9,15 +9,16 @@ export default {
     },
     extend: {
       colors: {
-        // 浅色主题 ink 色阶（白→浅灰）
+        // ink 色阶通过 CSS 变量定义，可在深色模式下自动切换
+        // 使用 <alpha-value> 占位符以支持透明度修饰符（如 bg-ink-800/60）
         ink: {
-          950: "#FFFFFF",
-          900: "#FFFFFF",
-          850: "#FFFFFF",
-          800: "#F4F4F7",
-          700: "#E5E5EA",
-          600: "#D1D1D8",
-          500: "#A1A1AA",
+          950: "rgb(var(--ink-950) / <alpha-value>)",
+          900: "rgb(var(--ink-900) / <alpha-value>)",
+          850: "rgb(var(--ink-850) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)",
+          700: "rgb(var(--ink-700) / <alpha-value>)",
+          600: "rgb(var(--ink-600) / <alpha-value>)",
+          500: "rgb(var(--ink-500) / <alpha-value>)",
         },
         crimson: {
           DEFAULT: "#E63946",

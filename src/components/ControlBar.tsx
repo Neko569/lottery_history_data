@@ -4,6 +4,7 @@ import type { LotteryType } from "@/types/lottery";
 import { LOTTERY_RULES, PAGE_SIZE_OPTIONS } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "./ThemeToggle";
 
 interface ControlBarProps {
   /** 是否处于分屏模式（分屏时隐藏彩种切换） */
@@ -27,16 +28,19 @@ export default function ControlBar({ splitView }: ControlBarProps) {
             <span className="font-serif text-lg font-black text-gold">彩</span>
           </div>
           <div className="leading-tight">
-            <h1 className="font-serif text-lg font-bold text-zinc-900 sm:text-xl">
+            <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100 sm:text-xl">
               彩运
             </h1>
-            <p className="hidden text-[10px] text-zinc-500 sm:block">
+            <p className="hidden text-[10px] text-zinc-500 dark:text-zinc-400 sm:block">
               开奖历史 · 走势分析 · 随机生成
             </p>
           </div>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* 深色模式切换 */}
+          <ThemeToggle />
+
           {/* 彩种切换：分屏时隐藏 */}
           {!splitView && (
             <div className="seg">
@@ -73,7 +77,7 @@ export default function ControlBar({ splitView }: ControlBarProps) {
               "btn",
               splitView
                 ? "bg-gold text-zinc-900 shadow-glow-gold"
-                : "border border-ink-600 bg-ink-800/60 text-zinc-700 hover:text-zinc-900",
+                : "border border-ink-600 bg-ink-800/60 text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100",
             )}
             onClick={() => setSplitView(!splitView)}
             aria-pressed={splitView}
@@ -90,15 +94,15 @@ export default function ControlBar({ splitView }: ControlBarProps) {
           </button>
 
           {/* 每页条数 */}
-          <label className="flex items-center gap-1.5 rounded-full border border-ink-600 bg-ink-800/60 py-1.5 pl-3 pr-1.5 text-sm text-zinc-400">
+          <label className="flex items-center gap-1.5 rounded-full border border-ink-600 bg-ink-800/60 py-1.5 pl-3 pr-1.5 text-sm text-zinc-400 dark:text-zinc-300">
             <span className="hidden sm:inline">每页</span>
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="cursor-pointer rounded-full bg-ink-700 px-2 py-0.5 text-sm font-medium text-zinc-900 outline-none hover:bg-ink-600"
+              className="cursor-pointer rounded-full bg-ink-700 px-2 py-0.5 text-sm font-medium text-zinc-900 outline-none hover:bg-ink-600 dark:text-zinc-100"
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n} className="bg-ink-800">
+                <option key={n} value={n} className="bg-ink-800 dark:text-zinc-100">
                   {n}
                 </option>
               ))}

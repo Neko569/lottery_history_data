@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import type { LotteryData, LotteryType } from "@/types/lottery";
 import { LOTTERY_RULES, TREND_PERIOD_OPTIONS } from "@/utils/lottery";
+import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
 interface FullNumberTrendChartProps {
@@ -46,10 +47,22 @@ const isPrime = (n: number): boolean => {
 
 export default function FullNumberTrendChart({ type, data }: FullNumberTrendChartProps) {
   const rule = LOTTERY_RULES[type];
+  const { isDark } = useTheme();
   const [period, setPeriod] = useState(50);
   const [area, setArea] = useState<"front" | "back">("front");
   const [trendType, setTrendType] = useState<TrendType>("position");
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
+
+  // 图表主题色
+  const chartColors = {
+    grid: isDark ? "#2a2a38" : "#E5E5EA",
+    axisLine: isDark ? "#3a3a4a" : "#D1D1D8",
+    tick: "#71717a",
+    tooltipBg: isDark ? "#16161f" : "#FFFFFF",
+    tooltipBorder: isDark ? "#2a2a38" : "#E5E5EA",
+    tooltipItem: isDark ? "#e5e5e5" : "#27272a",
+    heatmapEmpty: isDark ? "#1c1c28" : "#f4f4f7",
+  };
 
   const maxNum = area === "front" ? rule.frontMax : rule.backMax;
   const count = area === "front" ? rule.frontCount : rule.backCount;
@@ -294,7 +307,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       {trendType === "miss" && (
         <div className="card p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-700">选择号码查看遗漏走势</span>
+            <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">选择号码查看遗漏走势</span>
             {selectedNumbers.length > 0 && (
               <button type="button" onClick={() => setSelectedNumbers([])} className="text-xs text-crimson hover:underline">
                 清空选择
@@ -310,7 +323,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
                   "flex h-8 w-8 items-center justify-center rounded-lg text-sm font-mono font-medium transition-all",
                   selectedNumbers.includes(num)
                     ? "bg-crimson text-white shadow-glow"
-                    : "border border-ink-700 bg-ink-800/60 text-zinc-700 hover:border-crimson/60 hover:text-zinc-900",
+                    : "border border-ink-700 bg-ink-800/60 text-zinc-700 hover:border-crimson/60 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100",
                 )}
                 onClick={() => handleNumberToggle(num)}
               >
@@ -318,38 +331,38 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-zinc-500">提示：点击号码可切换选中状态，最多同时查看6个号码的遗漏走势</p>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">提示：点击号码可切换选中状态，最多同时查看6个号码的遗漏走势</p>
         </div>
       )}
 
       {/* 走势图 */}
       {chartData.length === 0 ? (
-        <div className="card flex h-80 items-center justify-center text-sm text-zinc-500">暂无走势数据</div>
+        <div className="card flex h-80 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">暂无走势数据</div>
       ) : (
         <div className="card p-4">
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 8, right: 12, left: -8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                 <XAxis
                   dataKey="term"
-                  tick={{ fill: "#71717a", fontSize: 11, fontFamily: "JetBrains Mono" }}
+                  tick={{ fill: chartColors.tick, fontSize: 11, fontFamily: "JetBrains Mono" }}
                   tickLine={false}
-                  axisLine={{ stroke: "#D1D1D8" }}
+                  axisLine={{ stroke: chartColors.axisLine }}
                   interval="preserveStartEnd"
                   minTickGap={15}
                 />
                 <YAxis
                   domain={getYAxisDomain()}
-                  tick={{ fill: "#71717a", fontSize: 11 }}
+                  tick={{ fill: chartColors.tick, fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: "#D1D1D8" }}
+                  axisLine={{ stroke: chartColors.axisLine }}
                   width={40}
                 />
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: 8, fontSize: 12 }}
+                  contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: "#B8932B", fontFamily: "JetBrains Mono" }}
-                  itemStyle={{ color: "#27272a" }}
+                  itemStyle={{ color: chartColors.tooltipItem }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
                 {getChartLines()}
@@ -362,16 +375,16 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       {/* 号码热力图 */}
       {heatmapData.length > 0 && (
         <div className="card p-4">
-          <h4 className="mb-3 text-sm font-medium text-zinc-900">号码分布热力图（最近50期）</h4>
+          <h4 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">号码分布热力图（最近50期）</h4>
           <div className="overflow-x-auto">
             <div className="min-w-[700px]">
               {/* 号码列标题 */}
               <div className="flex items-center gap-1 mb-1">
-                <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-400">期号</span>
+                <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-400 dark:text-zinc-500">期号</span>
                 {Array.from({ length: maxNum }, (_, i) => i + 1).map((n) => (
                   <div
                     key={n}
-                    className="flex-1 text-center text-[10px] font-mono font-medium text-zinc-600"
+                    className="flex-1 text-center text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400"
                   >
                     {String(n).padStart(2, "0")}
                   </div>
@@ -381,7 +394,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               <div className="grid grid-cols-1 gap-0.5">
                 {heatmapData.map((row) => (
                   <div key={row.term as string} className="flex items-center gap-0.5">
-                    <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-500">
+                    <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-500 dark:text-zinc-400">
                       {(row.term as string).slice(-3)}
                     </span>
                     {Array.from({ length: maxNum }, (_, i) => i + 1).map((n) => (
@@ -391,8 +404,9 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
                           "flex-1 h-5 flex items-center justify-center rounded-sm transition-colors text-[10px] font-mono",
                           row[`n${n}`] === 1
                             ? "bg-crimson text-white font-bold"
-                            : "bg-zinc-100 text-zinc-400",
+                            : "text-zinc-400 dark:text-zinc-500",
                         )}
+                        style={row[`n${n}`] === 0 ? { backgroundColor: chartColors.heatmapEmpty } : undefined}
                         title={`${row.term} - 号码 ${String(n).padStart(2, "0")}: ${row[`n${n}`] === 1 ? "出现" : "未出"}`}
                       >
                         {String(n).padStart(2, "0")}
@@ -403,12 +417,12 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               </div>
             </div>
           </div>
-          <div className="mt-2 flex items-center justify-end gap-4 text-xs text-zinc-500">
+          <div className="mt-2 flex items-center justify-end gap-4 text-xs text-zinc-500 dark:text-zinc-400">
             <span className="flex items-center gap-1">
               <span className="h-3 w-3 rounded-sm bg-crimson" /> 出现
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-3 w-3 rounded-sm bg-zinc-100" /> 未出
+              <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: chartColors.heatmapEmpty }} /> 未出
             </span>
           </div>
         </div>
@@ -418,7 +432,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       {missData.length > 0 && frequencyData.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="card p-4">
-            <h4 className="mb-3 text-sm font-medium text-zinc-900">当前遗漏期数</h4>
+            <h4 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">当前遗漏期数</h4>
             <div className="grid grid-cols-5 gap-1 sm:grid-cols-7">
               {missData.map((item) => (
                 <div
@@ -428,8 +442,8 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
                     item.miss >= 10 && "border-crimson/40 bg-crimson/5",
                   )}
                 >
-                  <span className="font-mono text-xs font-medium text-zinc-900">{String(item.num).padStart(2, "0")}</span>
-                  <span className={cn("text-[10px]", item.miss >= 10 ? "text-crimson" : "text-zinc-500")}>
+                  <span className="font-mono text-xs font-medium text-zinc-900 dark:text-zinc-100">{String(item.num).padStart(2, "0")}</span>
+                  <span className={cn("text-[10px]", item.miss >= 10 ? "text-crimson" : "text-zinc-500 dark:text-zinc-400")}>
                     {item.miss}期
                   </span>
                 </div>
@@ -438,22 +452,22 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
           </div>
 
           <div className="card p-4">
-            <h4 className="mb-3 text-sm font-medium text-zinc-900">号码出现频率（{period}期）</h4>
+            <h4 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">号码出现频率（{period}期）</h4>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={frequencyData} layout="vertical" margin={{ top: 5, right: 5, left: 30, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: "#71717a", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#D1D1D8" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false} />
+                  <XAxis type="number" tick={{ fill: chartColors.tick, fontSize: 10 }} tickLine={false} axisLine={{ stroke: chartColors.axisLine }} />
                   <YAxis
                     type="category"
                     dataKey="num"
-                    tick={{ fill: "#71717a", fontSize: 10 }}
+                    tick={{ fill: chartColors.tick, fontSize: 10 }}
                     tickLine={false}
-                    axisLine={{ stroke: "#D1D1D8" }}
+                    axisLine={{ stroke: chartColors.axisLine }}
                     width={30}
                   />
                   <Tooltip
-                    contentStyle={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: 8, fontSize: 11 }}
+                    contentStyle={{ backgroundColor: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, borderRadius: 8, fontSize: 11 }}
                     formatter={(value: number, name: string, props: { payload: { num: number; rate: string } }) => [
                       `${value}次 (${props.payload.rate}%)`,
                       `号码 ${String(props.payload.num).padStart(2, "0")}`,
