@@ -51,26 +51,21 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
   const frontBalls = rule.frontCount;
   const backBalls = rule.backCount;
 
-  // 检查是否有复式票
-  const hasCompound = tickets.some(t => t.isCompound);
-
-  // 计算尺寸
-  let width: number;
-  let height: number;
-
-  if (hasCompound) {
-    // 复式：上下两排，取前后区最大宽度
-    const maxBalls = Math.max(...tickets.map(t => Math.max(t.front.length, t.back.length)));
-    width = padding * 2 + maxBalls * ballSize + (maxBalls - 1) * ballGap;
-    const ticketHeight = ballSize * 2 + rowGap + 16; // 前区+后区+间距+小边距
-    height = labelHeight + tickets.length * ticketHeight + padding;
-  } else {
+  // 按每注自身是否复式计算尺寸（复式与单式混合时各自独立）
+  const getTicketWidth = (ticket: LotteryTicket) => {
+    if (ticket.isCompound) {
+      // 复式：上下两排，取前后区最大宽度
+      const maxBalls = Math.max(ticket.front.length, ticket.back.length);
+      return padding * 2 + maxBalls * ballSize + (maxBalls - 1) * ballGap;
+    }
     // 单式：同一排
-    const totalWidth = padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
-    width = totalWidth;
-    const rowHeight = ballSize + rowGap;
-    height = labelHeight + tickets.length * rowHeight + padding;
-  }
+    return padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
+  };
+  const getTicketHeight = (ticket: LotteryTicket) =>
+    ticket.isCompound ? ballSize * 2 + rowGap + 16 : ballSize + rowGap;
+
+  const width = Math.max(...tickets.map(getTicketWidth));
+  const height = labelHeight + tickets.reduce((sum, t) => sum + getTicketHeight(t), 0) + padding;
 
   const canvas = document.createElement("canvas");
   canvas.width = width * 2;
@@ -111,10 +106,11 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
     ctx.fillText(num, x, y);
   };
 
-  if (hasCompound) {
-    // 复式：上下两排布局
-    let currentY = labelHeight;
-    tickets.forEach((ticket, ticketIdx) => {
+  // 逐注绘制：复式上下两排，单式同一排（各自独立判断）
+  let currentY = labelHeight;
+  tickets.forEach((ticket, ticketIdx) => {
+    if (ticket.isCompound) {
+      // 复式：上下两排布局
       const centerX = width / 2;
 
       // 前区（上排）
@@ -149,12 +145,9 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
       ctx.fillText("复式", width - 8, currentY + ballSize / 2 + 4);
 
       currentY += ballSize * 2 + rowGap + 16;
-    });
-  } else {
-    // 单式：同一排布局
-    const rowHeight = ballSize + rowGap;
-    tickets.forEach((ticket, ticketIdx) => {
-      const y = labelHeight + ticketIdx * rowHeight;
+    } else {
+      // 单式：同一排布局
+      const y = currentY;
 
       // 前区球
       ticket.front.forEach((num, i) => {
@@ -180,8 +173,10 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
       ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
-    });
-  }
+
+      currentY += ballSize + rowGap;
+    }
+  });
 
   const link = document.createElement("a");
   link.download = `${type}-${Date.now()}.png`;
@@ -204,11 +199,11 @@ export default function MatchResultPage() {
   const type = searchParams.get("type") as LotteryType || "dlt";
   const ticketsJson = searchParams.get("tickets");
   const initialTickets: LotteryTicket[] = ticketsJson 
-    ? JSON.parse(ticketsJson).map((t: RandomTicket) => ({ ...t, isCompound: false }))
+    ? JSON.parse(ticketsJson).map((t: RandomTicket) => ({ ...t, isCompound: true }))
     : [];
   
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
-  const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(initialTickets.length > 0 ? initialTickets : [{ front: [], back: [], isCompound: false }]);
+  const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(initialTickets.length > 0 ? initialTickets : [{ front: [], back: [], isCompound: true }]);
   
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);
@@ -340,11 +335,11 @@ export default function MatchResultPage() {
     : null;
 
   const handleAddTicket = () => {
-    setCustomTickets([...customTickets, { front: [], back: [], isCompound: false }]);
+    setCustomTickets([...customTickets, { front: [], back: [], isCompound: true }]);
   };
 
   const handleClearAll = () => {
-    setCustomTickets([{ front: [], back: [], isCompound: false }]);
+    setCustomTickets([{ front: [], back: [], isCompound: true }]);
   };
 
   const handleRemoveTicket = (index: number) => {
@@ -371,7 +366,7 @@ export default function MatchResultPage() {
     const newTickets = generateTickets(type, 1);
     setCustomTickets(customTickets.map((ticket, idx) => {
       if (idx !== ticketIndex) return ticket;
-      return { ...newTickets[0], isCompound: false };
+      return { ...newTickets[0], isCompound: ticket.isCompound };
     }));
   };
 
@@ -437,7 +432,7 @@ export default function MatchResultPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setCustomTickets([{ front: [], back: [], isCompound: false }]);
+                  setCustomTickets([{ front: [], back: [], isCompound: true }]);
                   navigate(`/match?type=dlt`);
                 }}
                 className={cn(
@@ -450,7 +445,7 @@ export default function MatchResultPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setCustomTickets([{ front: [], back: [], isCompound: false }]);
+                  setCustomTickets([{ front: [], back: [], isCompound: true }]);
                   navigate(`/match?type=ssq`);
                 }}
                 className={cn(
