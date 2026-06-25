@@ -27,6 +27,20 @@ export default function Home() {
         <p>
           数据开源 · 仅供学习研究，不构成任何投注建议 · 请理性购彩
         </p>
+        {/* hits.sh 访问统计：隐私友好，无 cookie/IP 追踪 */}
+        <a
+          href="https://hits.sh"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-block"
+          title="访问统计 by hits.sh"
+        >
+          <img
+            src="https://hits.sh/github.com/Neko569/lottery_history_data.svg?view=today-total&style=flat-square&label=%E8%AE%BF%E9%97%AE%E7%BB%9F%E8%AE%A1&color=E63946&label-color=52525B"
+            alt="hits.sh 访问统计"
+            className="mx-auto h-5"
+          />
+        </a>
       </footer>
     </div>
   );
