@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package } from "lucide-react";
+import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URLS, generateTickets, generateTicketWithCounts, toLotteryType } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -16,6 +16,16 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: 100, label: "近100期" },
   { value: "all", label: "所有期数" },
 ];
+
+/** 号码选择网格每行列数：保证每行数字数量一致（优先整除）
+ *  dlt 前区 35 → 移动端 7 列（5 行整除）；桌面端 11 列（更紧凑，末行 2 个居中）
+ *  dlt 后区 12 → 6 列（2 行整除）
+ *  ssq 前区 33 → 移动端 7 列；桌面端 11 列（3 行整除）
+ *  ssq 后区 16 → 8 列（2 行整除） */
+const PICK_GRID_COLS: Record<LotteryType, { front: string; back: string }> = {
+  dlt: { front: "grid-cols-7 lg:grid-cols-11", back: "grid-cols-6" },
+  ssq: { front: "grid-cols-7 sm:grid-cols-11", back: "grid-cols-8" },
+};
 
 /** 大乐透套餐票组合部件：单式或复式 */
 interface DltPackagePart {
@@ -263,6 +273,9 @@ export default function MatchResultPage() {
   const ticketsJson = searchParams.get("tickets");
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
+  const [pickCollapsed, setPickCollapsed] = useState(false);
+  /** 中奖明细折叠状态：记录已折叠的注索引，默认全部展开 */
+  const [collapsedMatches, setCollapsedMatches] = useState<Set<number>>(new Set());
   const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(() => {
     const empty = [{ front: [], back: [] }] as LotteryTicket[];
     if (!ticketsJson) return empty;
@@ -627,8 +640,8 @@ export default function MatchResultPage() {
               </div>
             )}
 
-            <div className="space-y-6">
-              <div className="card p-4">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="card p-4 lg:sticky lg:top-4 lg:self-start">
                 <div className="mb-4 flex flex-wrap items-center gap-4">
                   <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">选择查询范围:</span>
                   <div className="flex gap-2">
@@ -653,8 +666,34 @@ export default function MatchResultPage() {
                   </span>
                 </div>
 
-                {type === "dlt" && (
-                  <div className="mb-4 rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
+                {/* 选号区：可折叠，查询范围始终显示在折叠区外 */}
+                <div className="overflow-hidden rounded-xl border border-ink-700/60 bg-ink-900/20">
+                  <button
+                    type="button"
+                    onClick={() => setPickCollapsed((v) => !v)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-ink-800/40"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">选号区</span>
+                      <span className="rounded-full bg-ink-800 px-2 py-0.5 text-xs text-zinc-400 dark:text-zinc-300">{customTickets.length}注</span>
+                      {allTicketsComplete && (
+                        <span className="flex items-center gap-1 text-xs text-green-500">
+                          <CheckCircle2 className="h-3 w-3" />
+                          已选完
+                        </span>
+                      )}
+                    </div>
+                    {pickCollapsed ? (
+                      <ChevronDown className="h-4 w-4 text-zinc-500" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 text-zinc-500" />
+                    )}
+                  </button>
+
+                  {!pickCollapsed && (
+                    <div className="space-y-4 border-t border-ink-700/60 p-4">
+                      {type === "dlt" && (
+                        <div className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
                     <div className="mb-2 flex items-center gap-2">
                       <Package className="h-3.5 w-3.5 text-gold" />
                       <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">按套餐票生成</span>
@@ -739,16 +778,16 @@ export default function MatchResultPage() {
                               {rule.frontLabel} ({ticket.front.length}/{rule.frontMax}，最少{rule.frontCount})
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-1">
+                          <div className={cn("grid gap-1", PICK_GRID_COLS[type].front)}>
                             {Array.from({ length: rule.frontMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}
                                 type="button"
                                 className={cn(
-                                  "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                                  "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
                                   ticket.front.includes(num)
                                     ? "bg-crimson text-white"
-                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700 dark:text-zinc-300"
+                                    : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
                                 )}
                                 onClick={() => handleToggleNumber(ticketIdx, "front", num)}
                               >
@@ -764,16 +803,16 @@ export default function MatchResultPage() {
                               {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-1">
+                          <div className={cn("grid gap-1", PICK_GRID_COLS[type].back)}>
                             {Array.from({ length: rule.backMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}
                                 type="button"
                                 className={cn(
-                                  "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                                  "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
                                   ticket.back.includes(num)
                                     ? "bg-indigo text-white"
-                                    : "bg-ink-800 text-zinc-400 hover:bg-ink-700 dark:text-zinc-300"
+                                    : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
                                 )}
                                 onClick={() => handleToggleNumber(ticketIdx, "back", num)}
                               >
@@ -815,8 +854,13 @@ export default function MatchResultPage() {
                     )}
                   </div>
                 </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
+              {/* 右侧：匹配结果（桌面端与选号区并排，移动端堆叠在下方） */}
+              <div className="space-y-4">
               {!allTicketsComplete ? (
                 <div className="card text-center py-8">
                   <BarChart3 className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
@@ -827,7 +871,7 @@ export default function MatchResultPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="card flex items-center gap-3 p-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10">
                         <Trophy className="h-5 w-5 text-gold" />
@@ -875,38 +919,59 @@ export default function MatchResultPage() {
                     const matchResult = calculateMatches(ticket);
                     if (matchResult.matches.length === 0) return null;
 
+                    const isMatchCollapsed = collapsedMatches.has(ticketIdx);
+                    const toggleMatch = () =>
+                      setCollapsedMatches((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(ticketIdx)) next.delete(ticketIdx);
+                        else next.add(ticketIdx);
+                        return next;
+                      });
+
                     return (
                       <div key={ticketIdx} className="card overflow-hidden">
-                        <div className="flex items-center justify-between border-b border-ink-700/60 px-4 py-3">
-                          <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={toggleMatch}
+                          className="flex w-full flex-col gap-2 border-b border-ink-700/60 px-4 py-3 text-left transition-colors hover:bg-ink-900/30"
+                        >
+                          {/* 第一行：注号标签 + 奖项 / 中奖次数 / 折叠箭头 */}
+                          <div className="flex items-center justify-between">
                             <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
                               第{ticketIdx + 1}注 {compound && `(复式${getTotalCombinations(ticket)}注)`}
                             </span>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {ticket.front.map((n, i) => (
-                                <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
-                              ))}
-                              <span className="mx-1 h-3 w-px bg-ink-600" />
-                              {ticket.back.map((n, i) => (
-                                <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
-                              ))}
+                            <div className="flex items-center gap-2">
+                              {matchResult.prizeLevel && (
+                                <span className={cn("rounded-full px-3 py-1 text-xs font-bold",
+                                  PRIZE_COLORS[matchResult.prizeLevel]?.bg,
+                                  PRIZE_COLORS[matchResult.prizeLevel]?.text)}>
+                                  {matchResult.prizeLevel}
+                                </span>
+                              )}
+                              <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-300">
+                                中奖{matchResult.total}次
+                              </span>
+                              {isMatchCollapsed ? (
+                                <ChevronDown className="h-4 w-4 text-zinc-500" />
+                              ) : (
+                                <ChevronUp className="h-4 w-4 text-zinc-500" />
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {matchResult.prizeLevel && (
-                              <span className={cn("rounded-full px-3 py-1 text-xs font-bold",
-                                PRIZE_COLORS[matchResult.prizeLevel]?.bg,
-                                PRIZE_COLORS[matchResult.prizeLevel]?.text)}>
-                                {matchResult.prizeLevel}
-                              </span>
-                            )}
-                            <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-300">
-                              中奖{matchResult.total}次
-                            </span>
+                          {/* 第二行：本注号码 */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {ticket.front.map((n, i) => (
+                              <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
+                            ))}
+                            <span className="mx-1 h-3 w-px bg-ink-600" />
+                            {ticket.back.map((n, i) => (
+                              <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
+                            ))}
                           </div>
-                        </div>
+                        </button>
 
-                        <div className="divide-y divide-ink-700/60">
+                        {!isMatchCollapsed && (
+                          <div className="divide-y divide-ink-700/60">
                           {matchResult.matches.slice(0, 30).map((m, i) => {
                             const prize = getPrizeLevel(m.frontMatch, m.backMatch);
                             const item = m.item as LotteryItem;
@@ -939,13 +1004,13 @@ export default function MatchResultPage() {
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-1.5 pl-8">
+                                <div className="flex flex-wrap items-center gap-1.5">
                                   {item.front_numbers.map((n, ni) => (
                                     <LotteryBall
                                       key={`fn-${ni}`}
                                       number={n}
                                       variant="front"
-                                      size="xs"
+                                      size="sm"
                                       highlight={ticket.front.includes(n)}
                                     />
                                   ))}
@@ -955,7 +1020,7 @@ export default function MatchResultPage() {
                                       key={`bn-${ni}`}
                                       number={n}
                                       variant="back"
-                                      size="xs"
+                                      size="sm"
                                       highlight={ticket.back.includes(n)}
                                     />
                                   ))}
@@ -968,7 +1033,8 @@ export default function MatchResultPage() {
                               还有 {matchResult.matches.length - 30} 条中奖记录...
                             </div>
                           )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -981,6 +1047,7 @@ export default function MatchResultPage() {
                   )}
                 </>
               )}
+              </div>
             </div>
           </>
         )}
