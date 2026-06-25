@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { LotteryData, LotteryType } from "@/types/lottery";
 import {
-  REMOTE_URLS,
-  GITEE_URLS,
+  REMOTE_JSON_URLS,
+  GITEE_CSV_URLS,
   DATA_REPO_URLS,
   DEFAULT_PAGE_SIZE,
 } from "@/utils/lottery";
@@ -38,8 +38,11 @@ const initialLotteryState: LotteryState = {
 // ──────────────────────────────────────────────
 const reqTokens: Record<LotteryType, number> = { dlt: 0, ssq: 0 };
 
-/** 远程数据获取超时时间（毫秒） */
-const FETCH_TIMEOUT = 8000;
+/** 单次请求超时时间（毫秒） */
+const FETCH_TIMEOUT = 6000;
+
+/** GitHub JSON 获取失败时的最大重试次数 */
+const MAX_RETRY = 1;
 
 interface LotteryStore {
   states: Record<LotteryType, LotteryState>;
@@ -58,45 +61,66 @@ interface LotteryStore {
   setDesktop: (isDesktop: boolean) => void;
 }
 
-/** 带超时的 fetch：先尝试 GitHub，超时或失败后 fallback 到 Gitee */
-async function fetchWithFallback(
-  githubUrl: string,
-  giteeUrl: string,
-): Promise<Response> {
-  // 先尝试 GitHub（带超时）
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+/** 带超时的 fetch：先尝试 GitHub JSON，失败后 fallback 到 Gitee CSV */
+/** 发起单次带超时的 fetch，返回 Response；超时或失败抛异常 */
+/** 发起单次带超时的 fetch，超时或失败抛异常（使用 Promise.race 实现可靠超时） */
+async function fetchOnce(url: string): Promise<Response> {
+  const timeoutPromise = new Promise<Response>((_, reject) => {
+    setTimeout(() => reject(new DOMException("Timeout", "AbortError")), FETCH_TIMEOUT);
+  });
+  const fetchPromise = fetch(url, { cache: "no-cache" });
+  const res = await Promise.race([fetchPromise, timeoutPromise]);
+  if (!res.ok) throw new Error(`请求失败 (${res.status})`);
+  return res;
+}
 
-  try {
-    const res = await fetch(githubUrl, {
-      signal: controller.signal,
-      cache: "no-cache",
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) return res;
-    // GitHub 返回错误状态码，尝试 Gitee
-    throw new Error(`GitHub 请求失败 (${res.status})`);
-  } catch (err) {
-    clearTimeout(timeoutId);
-    // GitHub 超时或失败，尝试 Gitee
+/** 带重试的 fetch：先尝试 GitHub JSON（重试 MAX_RETRY 次），全部失败则 fallback 到 Gitee CSV */
+async function fetchWithFallback(
+  type: LotteryType,
+): Promise<{ data: LotteryData; source: string }> {
+  // 第 1 步：尝试 GitHub JSON，失败重试最多 MAX_RETRY 次
+  let githubLastErr: unknown = null;
+  for (let i = 0; i <= MAX_RETRY; i++) {
     try {
-      const res = await fetch(giteeUrl, { cache: "no-cache" });
-      if (res.ok) return res;
-      throw new Error(`Gitee 请求失败 (${res.status})`);
-    } catch (giteeErr) {
-      // 两个源都失败，抛出描述性错误
-      const githubMsg =
-        err instanceof DOMException && err.name === "AbortError"
-          ? "超时"
-          : err instanceof Error
-            ? err.message
-            : String(err);
-      const giteeMsg =
-        giteeErr instanceof Error ? giteeErr.message : String(giteeErr);
-      throw new Error(
-        `远程数据加载失败：GitHub(${githubMsg})、Gitee(${giteeMsg})`,
-      );
+      const res = await fetchOnce(REMOTE_JSON_URLS[type]);
+      if (res.ok) {
+        const text = await res.text();
+        const json = JSON.parse(text);
+        const data = parseLotteryData(json);
+        return { data, source: "GitHub JSON" };
+      }
+      githubLastErr = new Error(`GitHub JSON 请求失败 (${res.status})`);
+    } catch (err) {
+      githubLastErr = err;
     }
+  }
+
+  // 第 2 步：GitHub JSON 全部失败，尝试 Gitee CSV（不重试）
+  try {
+    const res = await fetchOnce(GITEE_CSV_URLS[type]);
+    if (res.ok) {
+      const text = await res.text();
+      const data = parseCSVLotteryData(text, type);
+      return { data, source: "Gitee CSV" };
+    }
+    throw new Error(`Gitee CSV 请求失败 (${res.status})`);
+  } catch (giteeErr) {
+    // 第 3 步：两个源都失败，抛出带数据源链接的错误
+    const githubMsg =
+      githubLastErr instanceof DOMException && (githubLastErr as DOMException).name === "AbortError"
+        ? "超时"
+        : githubLastErr instanceof Error
+          ? (githubLastErr as Error).message
+          : String(githubLastErr);
+    const giteeMsg =
+      giteeErr instanceof DOMException && (giteeErr as DOMException).name === "AbortError"
+        ? "超时"
+        : giteeErr instanceof Error
+          ? (giteeErr as Error).message
+          : String(giteeErr);
+    throw new Error(
+      `远程数据加载失败：GitHub JSON(${githubMsg})、Gitee CSV(${giteeMsg})`,
+    );
   }
 }
 
@@ -119,9 +143,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
       },
     }));
     try {
-      const res = await fetchWithFallback(REMOTE_URLS[type], GITEE_URLS[type]);
-      const text = await res.text();
-      const data = parseCSVLotteryData(text, type);
+      const { data, source } = await fetchWithFallback(type);
       // 远程数据默认按期号倒序，确保最新在前
       data.items = sortDesc(data.items);
       // 若已被新请求取代（如用户再次刷新或上传了文件），丢弃本次结果

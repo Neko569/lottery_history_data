@@ -24,14 +24,14 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
   },
 };
 
-/** 远程数据地址（GitHub CSV） */
-export const REMOTE_URLS: Record<LotteryType, string> = {
-  dlt: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.csv",
-  ssq: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.csv",
+/** 远程数据地址（GitHub JSON，优先使用） */
+export const REMOTE_JSON_URLS: Record<LotteryType, string> = {
+  dlt: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.json",
+  ssq: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.json",
 };
 
-/** Gitee 备用远程数据地址（GitHub 超时时的 fallback） */
-export const GITEE_URLS: Record<LotteryType, string> = {
+/** Gitee 备用远程数据地址（GitHub JSON 获取失败时的 CSV fallback） */
+export const GITEE_CSV_URLS: Record<LotteryType, string> = {
   dlt: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/dlt_history.csv",
   ssq: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/ssq_history.csv",
 };
