@@ -180,53 +180,61 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
   }, [data, period, area, maxNum]);
 
   const getChartLines = () => {
+    // 数据点描边色：与所在卡片背景形成对比，避免点融入背景
+    const dotStroke = isDark ? "#16161f" : "#FFFFFF";
     if (trendType === "position") {
-      return Array.from({ length: count }).map((_, i) => (
-        <Line
-          key={`p${i + 1}`}
-          type="monotone"
-          dataKey={`p${i + 1}`}
-          name={`${label}${i + 1}`}
-          stroke={PALETTE[i % PALETTE.length]}
-          strokeWidth={2}
-          dot={{ r: 3, strokeWidth: 0 }}
-          activeDot={{ r: 6 }}
-          connectNulls
-        />
-      ));
+      return Array.from({ length: count }).map((_, i) => {
+        const color = PALETTE[i % PALETTE.length];
+        return (
+          <Line
+            key={`p${i + 1}`}
+            type="monotone"
+            dataKey={`p${i + 1}`}
+            name={`${label}${i + 1}`}
+            stroke={color}
+            strokeWidth={2}
+            dot={{ r: 3, fill: color, stroke: dotStroke, strokeWidth: 1 }}
+            activeDot={{ r: 6, fill: color, stroke: dotStroke, strokeWidth: 1.5 }}
+            connectNulls
+          />
+        );
+      });
     } else if (trendType === "miss") {
       const displayNums = selectedNumbers.length > 0 ? selectedNumbers : Array.from({ length: Math.min(6, maxNum) }, (_, i) => i + 1);
-      return displayNums.map((num, i) => (
-        <Line
-          key={`m${num}`}
-          type="monotone"
-          dataKey={`m${num}`}
-          name={`号码 ${String(num).padStart(2, "0")}`}
-          stroke={PALETTE[i % PALETTE.length]}
-          strokeWidth={2}
-          dot={{ r: 2, strokeWidth: 0 }}
-          activeDot={{ r: 5 }}
-        />
-      ));
+      return displayNums.map((num, i) => {
+        const color = PALETTE[i % PALETTE.length];
+        return (
+          <Line
+            key={`m${num}`}
+            type="monotone"
+            dataKey={`m${num}`}
+            name={`号码 ${String(num).padStart(2, "0")}`}
+            stroke={color}
+            strokeWidth={2}
+            dot={{ r: 2, fill: color, stroke: dotStroke, strokeWidth: 1 }}
+            activeDot={{ r: 5, fill: color, stroke: dotStroke, strokeWidth: 1.5 }}
+          />
+        );
+      });
     } else if (trendType === "sum") {
       return [
-        <Line key="sum" type="monotone" dataKey="sum" name="和值" stroke="#E63946" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
-        <Line key="avg" type="monotone" dataKey="avg" name="平均值" stroke="#3A86FF" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} activeDot={{ r: 6 }} />,
+        <Line key="sum" type="monotone" dataKey="sum" name="和值" stroke="#E63946" strokeWidth={2} dot={{ r: 3, fill: "#E63946", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#E63946", stroke: dotStroke, strokeWidth: 1.5 }} />,
+        <Line key="avg" type="monotone" dataKey="avg" name="平均值" stroke="#3A86FF" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1.5 }} />,
       ];
     } else if (trendType === "parity") {
       return [
-        <Line key="even" type="monotone" dataKey="even" name="偶数" stroke="#3A86FF" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
-        <Line key="odd" type="monotone" dataKey="odd" name="奇数" stroke="#E63946" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
+        <Line key="even" type="monotone" dataKey="even" name="偶数" stroke="#3A86FF" strokeWidth={2} dot={{ r: 3, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1.5 }} />,
+        <Line key="odd" type="monotone" dataKey="odd" name="奇数" stroke="#E63946" strokeWidth={2} dot={{ r: 3, fill: "#E63946", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#E63946", stroke: dotStroke, strokeWidth: 1.5 }} />,
       ];
     } else if (trendType === "size") {
       return [
-        <Line key="big" type="monotone" dataKey="big" name="大号" stroke="#E63946" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
-        <Line key="small" type="monotone" dataKey="small" name="小号" stroke="#3A86FF" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
+        <Line key="big" type="monotone" dataKey="big" name="大号" stroke="#E63946" strokeWidth={2} dot={{ r: 3, fill: "#E63946", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#E63946", stroke: dotStroke, strokeWidth: 1.5 }} />,
+        <Line key="small" type="monotone" dataKey="small" name="小号" stroke="#3A86FF" strokeWidth={2} dot={{ r: 3, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1.5 }} />,
       ];
     } else if (trendType === "prime") {
       return [
-        <Line key="prime" type="monotone" dataKey="prime" name="质数" stroke="#06D6A0" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
-        <Line key="composite" type="monotone" dataKey="composite" name="合数" stroke="#9B5DE5" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} />,
+        <Line key="prime" type="monotone" dataKey="prime" name="质数" stroke="#06D6A0" strokeWidth={2} dot={{ r: 3, fill: "#06D6A0", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#06D6A0", stroke: dotStroke, strokeWidth: 1.5 }} />,
+        <Line key="composite" type="monotone" dataKey="composite" name="合数" stroke="#9B5DE5" strokeWidth={2} dot={{ r: 3, fill: "#9B5DE5", stroke: dotStroke, strokeWidth: 1 }} activeDot={{ r: 6, fill: "#9B5DE5", stroke: dotStroke, strokeWidth: 1.5 }} />,
       ];
     }
     return [];
