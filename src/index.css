@@ -137,3 +137,15 @@ body {
   background-size: 400% 100%;
   @apply animate-shimmer;
 }
+
+/* 折线图图例：窄容器下允许换行，避免多项挤成一行 */
+.recharts-default-legend {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 10px;
+}
+.recharts-default-legend .recharts-legend-item {
+  margin-right: 0 !important;
+  white-space: nowrap;
+}
