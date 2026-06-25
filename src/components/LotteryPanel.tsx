@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, TrendingUp } from "lucide-react";
 import type { LotteryType } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URL } from "@/utils/lottery";
+import { LOTTERY_RULES, DATA_REPO_URLS } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryList from "./LotteryList";
 import TrendChart from "./TrendChart";
@@ -88,14 +88,14 @@ export default function LotteryPanel({
             type="button"
             className="btn-ghost h-9 w-9 p-0"
             onClick={() => fileInputRef.current?.click()}
-            title="手动上传 JSON"
+            title="上传数据文件 (JSON / CSV)"
           >
             <Upload className="h-4 w-4" />
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json,application/json"
+            accept=".json,.csv,application/json,text/csv"
             className="hidden"
             onChange={handleFileChange}
           />
@@ -165,9 +165,32 @@ function DataSourceBadge({
 
   if (error) {
     return (
-      <div className="flex items-start gap-2 rounded-lg border border-crimson/40 bg-crimson/10 px-3 py-2 text-xs text-crimson-400">
-        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>{error}</span>
+      <div className="rounded-lg border border-crimson/40 bg-crimson/10 px-3 py-2 text-xs text-crimson-400">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="space-y-1.5">
+            <div>远程数据加载失败，请手动上传数据文件。</div>
+            <div className="flex flex-col gap-1">
+              <span>数据文件下载地址：</span>
+              <a
+                href={DATA_REPO_URLS.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-400 underline-offset-2 hover:underline"
+              >
+                GitHub 数据仓库
+              </a>
+              <a
+                href={DATA_REPO_URLS.gitee}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-400 underline-offset-2 hover:underline"
+              >
+                Gitee 数据仓库
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -178,12 +201,21 @@ function DataSourceBadge({
         <Cloud className="h-3.5 w-3.5 text-indigo-400" />
         <span>数据来源：开源仓库</span>
         <a
-          href={DATA_REPO_URL}
+          href={DATA_REPO_URLS.github}
           target="_blank"
           rel="noopener noreferrer"
           className="text-indigo-400 underline-offset-2 hover:underline"
         >
-          get_lottery_data
+          GitHub
+        </a>
+        <span className="text-zinc-600 dark:text-zinc-500">/</span>
+        <a
+          href={DATA_REPO_URLS.gitee}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-400 underline-offset-2 hover:underline"
+        >
+          Gitee
         </a>
         {generatedAt && (
           <span className="text-zinc-600 dark:text-zinc-500">· 更新于 {generatedAt}</span>

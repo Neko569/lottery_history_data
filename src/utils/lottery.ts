@@ -24,15 +24,23 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
   },
 };
 
-/** 远程数据地址 */
+/** 远程数据地址（GitHub CSV） */
 export const REMOTE_URLS: Record<LotteryType, string> = {
-  dlt: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.json",
-  ssq: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.json",
+  dlt: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.csv",
+  ssq: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.csv",
 };
 
-/** 数据源仓库地址（用于展示与跳转） */
-export const DATA_REPO_URL =
-  "https://github.com/Neko569/get_lottery_data/tree/main/data";
+/** Gitee 备用远程数据地址（GitHub 超时时的 fallback） */
+export const GITEE_URLS: Record<LotteryType, string> = {
+  dlt: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/dlt_history.csv",
+  ssq: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/ssq_history.csv",
+};
+
+/** 数据源仓库地址（展示用） */
+export const DATA_REPO_URLS = {
+  github: "https://github.com/Neko569/get_lottery_data/tree/main/data",
+  gitee: "https://gitee.com/retro569/get_lottery_data/tree/main/data",
+};
 
 /** 将数字补零为两位字符串 */
 export function pad2(n: number): string {

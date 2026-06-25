@@ -1,7 +1,17 @@
 import { create } from "zustand";
 import type { LotteryData, LotteryType } from "@/types/lottery";
-import { REMOTE_URLS, DEFAULT_PAGE_SIZE } from "@/utils/lottery";
-import { parseLotteryData, readFileAsText } from "@/utils/dataParser";
+import {
+  REMOTE_URLS,
+  GITEE_URLS,
+  DATA_REPO_URLS,
+  DEFAULT_PAGE_SIZE,
+} from "@/utils/lottery";
+import {
+  parseLotteryData,
+  parseCSVLotteryData,
+  parseLotteryText,
+  readFileAsText,
+} from "@/utils/dataParser";
 
 /** 单个彩种的运行时状态 */
 interface LotteryState {
@@ -28,6 +38,9 @@ const initialLotteryState: LotteryState = {
 // ──────────────────────────────────────────────
 const reqTokens: Record<LotteryType, number> = { dlt: 0, ssq: 0 };
 
+/** 远程数据获取超时时间（毫秒） */
+const FETCH_TIMEOUT = 8000;
+
 interface LotteryStore {
   states: Record<LotteryType, LotteryState>;
   activeLottery: LotteryType;
@@ -43,6 +56,48 @@ interface LotteryStore {
   setPageSize: (size: number) => void;
   setCurrentPage: (type: LotteryType, page: number) => void;
   setDesktop: (isDesktop: boolean) => void;
+}
+
+/** 带超时的 fetch：先尝试 GitHub，超时或失败后 fallback 到 Gitee */
+async function fetchWithFallback(
+  githubUrl: string,
+  giteeUrl: string,
+): Promise<Response> {
+  // 先尝试 GitHub（带超时）
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+  try {
+    const res = await fetch(githubUrl, {
+      signal: controller.signal,
+      cache: "no-cache",
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) return res;
+    // GitHub 返回错误状态码，尝试 Gitee
+    throw new Error(`GitHub 请求失败 (${res.status})`);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    // GitHub 超时或失败，尝试 Gitee
+    try {
+      const res = await fetch(giteeUrl, { cache: "no-cache" });
+      if (res.ok) return res;
+      throw new Error(`Gitee 请求失败 (${res.status})`);
+    } catch (giteeErr) {
+      // 两个源都失败，抛出描述性错误
+      const githubMsg =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "超时"
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      const giteeMsg =
+        giteeErr instanceof Error ? giteeErr.message : String(giteeErr);
+      throw new Error(
+        `远程数据加载失败：GitHub(${githubMsg})、Gitee(${giteeMsg})`,
+      );
+    }
+  }
 }
 
 export const useLotteryStore = create<LotteryStore>((set, get) => ({
@@ -64,12 +119,9 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
       },
     }));
     try {
-      const res = await fetch(REMOTE_URLS[type], { cache: "no-cache" });
-      if (!res.ok) {
-        throw new Error(`请求失败 (${res.status})`);
-      }
-      const json = await res.json();
-      const data = parseLotteryData(json);
+      const res = await fetchWithFallback(REMOTE_URLS[type], GITEE_URLS[type]);
+      const text = await res.text();
+      const data = parseCSVLotteryData(text, type);
       // 远程数据默认按期号倒序，确保最新在前
       data.items = sortDesc(data.items);
       // 若已被新请求取代（如用户再次刷新或上传了文件），丢弃本次结果
@@ -96,7 +148,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
           [type]: {
             ...s.states[type],
             loading: false,
-            error: `远程数据加载失败：${msg}。可尝试手动上传 JSON 文件。`,
+            error: buildErrorMessage(msg),
           },
         },
       }));
@@ -118,8 +170,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
     }));
     try {
       const text = await readFileAsText(file);
-      const json = JSON.parse(text);
-      const data = parseLotteryData(json);
+      const data = parseLotteryText(text, type);
       data.items = sortDesc(data.items);
       // 若已被新请求取代，丢弃本次结果
       if (myToken !== reqTokens[type]) return;
@@ -170,6 +221,11 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
     })),
   setDesktop: (isDesktop) => set({ isDesktop }),
 }));
+
+/** 构建包含数据源链接的错误提示信息 */
+function buildErrorMessage(msg: string): string {
+  return `${msg}。\n\n可从以下地址下载数据文件后手动上传：\n• GitHub：${DATA_REPO_URLS.github}\n• Gitee：${DATA_REPO_URLS.gitee}`;
+}
 
 /** 将开奖记录按期号倒序排列（最新在前） */
 function sortDesc(items: LotteryData["items"]): LotteryData["items"] {
