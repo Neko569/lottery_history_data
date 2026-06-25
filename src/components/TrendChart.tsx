@@ -172,7 +172,8 @@ export default function TrendChart({ type, data }: TrendChartProps) {
 
   return (
     <div className="card p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      {/* 标题 + 控件：标题独占一行，控件组在窄容器下自然换行 */}
+      <div className="mb-3 space-y-2">
         <div className="flex items-center gap-2">
           <h3 className="font-serif text-base font-bold text-zinc-900 dark:text-zinc-100">
             号码走势
@@ -181,7 +182,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
             {area === "front" ? rule.frontLabel : rule.backLabel} · {count} 球
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* 走势图类型切换 */}
           <div className="seg">
             {(Object.keys(TREND_TYPE_LABELS) as TrendType[]).map((t) => (
@@ -279,8 +280,9 @@ export default function TrendChart({ type, data }: TrendChartProps) {
                 itemStyle={{ color: chartColors.tooltipItem }}
               />
               <Legend
-                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                wrapperStyle={{ fontSize: 11, paddingTop: 8, display: "flex", flexWrap: "wrap", gap: "2px 8px", justifyContent: "center", maxHeight: 48, overflow: "hidden" }}
                 iconType="circle"
+                iconSize={9}
               />
               {getChartLines()}
             </LineChart>
