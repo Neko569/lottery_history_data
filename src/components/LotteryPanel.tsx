@@ -34,10 +34,6 @@ export default function LotteryPanel({
 
   const accentText =
     rule.accent === "crimson" ? "text-crimson" : "text-indigo";
-  const accentBg =
-    rule.accent === "crimson"
-      ? "from-crimson to-crimson-700 shadow-glow"
-      : "from-indigo to-indigo-700 shadow-glow-indigo";
   const accentBorder =
     rule.accent === "crimson" ? "border-crimson/40" : "border-indigo/40";
 

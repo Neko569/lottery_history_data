@@ -50,6 +50,16 @@ export function pickNumbers(count: number, max: number): string[] {
     .map(pad2);
 }
 
+/** 运行时校验字符串是否为合法彩种类型 */
+export function isLotteryType(value: unknown): value is LotteryType {
+  return value === "dlt" || value === "ssq";
+}
+
+/** 将任意值安全转为 LotteryType，非法值回退到 fallback（默认 dlt） */
+export function toLotteryType(value: unknown, fallback: LotteryType = "dlt"): LotteryType {
+  return isLotteryType(value) ? value : fallback;
+}
+
 /** 生成一注符合规则的随机号码 */
 export function generateTicket(type: LotteryType): RandomTicket {
   const rule = LOTTERY_RULES[type];

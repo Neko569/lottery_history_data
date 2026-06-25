@@ -73,6 +73,9 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
     if (!data || data.items.length === 0) return [];
     const sliced = data.items.slice(0, period).reverse();
 
+    // 遗漏走势需要跨条目累计，在 map 外维护计数字典
+    const missCount: Record<number, number> = {};
+
     return sliced.map((item) => {
       const nums = area === "front" ? item.front_numbers : item.back_numbers;
       const numValues = nums.map((n) => Number(n));
@@ -87,7 +90,13 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
         }
       } else if (trendType === "miss") {
         for (let n = 1; n <= maxNum; n++) {
-          row[`m${n}`] = nums.includes(String(n).padStart(2, "0")) ? 0 : (row[`m${n}`] as number) + 1 || 1;
+          if (nums.includes(String(n).padStart(2, "0"))) {
+            missCount[n] = 0;
+            row[`m${n}`] = 0;
+          } else {
+            missCount[n] = (missCount[n] || 0) + 1;
+            row[`m${n}`] = missCount[n];
+          }
         }
       } else if (trendType === "sum") {
         const sum = numValues.reduce((acc, val) => acc + val, 0);
@@ -129,7 +138,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
 
   const missData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
-    let currentMiss: Record<number, number> = {};
+    const currentMiss: Record<number, number> = {};
     for (let n = 1; n <= maxNum; n++) {
       currentMiss[n] = 0;
     }

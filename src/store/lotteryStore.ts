@@ -21,6 +21,13 @@ const initialLotteryState: LotteryState = {
   source: null,
 };
 
+// ──────────────────────────────────────────────
+// 竞态控制：每个彩种维护一个递增的请求 token，
+// fetch / upload 共用同一 token 互斥。
+// 异步操作返回时若 token 已过期，说明被新请求取代，丢弃结果。
+// ──────────────────────────────────────────────
+const reqTokens: Record<LotteryType, number> = { dlt: 0, ssq: 0 };
+
 interface LotteryStore {
   states: Record<LotteryType, LotteryState>;
   activeLottery: LotteryType;
@@ -49,6 +56,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
   isDesktop: true,
 
   fetchRemoteData: async (type) => {
+    const myToken = ++reqTokens[type];
     set((s) => ({
       states: {
         ...s.states,
@@ -64,6 +72,8 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
       const data = parseLotteryData(json);
       // 远程数据默认按期号倒序，确保最新在前
       data.items = sortDesc(data.items);
+      // 若已被新请求取代（如用户再次刷新或上传了文件），丢弃本次结果
+      if (myToken !== reqTokens[type]) return;
       set((s) => ({
         states: {
           ...s.states,
@@ -77,6 +87,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
         },
       }));
     } catch (err) {
+      if (myToken !== reqTokens[type]) return;
       const msg =
         err instanceof Error ? err.message : "未知错误";
       set((s) => ({
@@ -98,6 +109,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
   },
 
   uploadData: async (type, file) => {
+    const myToken = ++reqTokens[type];
     set((s) => ({
       states: {
         ...s.states,
@@ -109,6 +121,8 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
       const json = JSON.parse(text);
       const data = parseLotteryData(json);
       data.items = sortDesc(data.items);
+      // 若已被新请求取代，丢弃本次结果
+      if (myToken !== reqTokens[type]) return;
       set((s) => ({
         states: {
           ...s.states,
@@ -122,6 +136,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
         },
       }));
     } catch (err) {
+      if (myToken !== reqTokens[type]) return;
       const msg = err instanceof Error ? err.message : "未知错误";
       set((s) => ({
         states: {

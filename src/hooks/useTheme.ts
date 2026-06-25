@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import { create } from "zustand";
 
 export type Theme = "light" | "dark";
 
@@ -19,17 +20,19 @@ export const getTimeBasedTheme = (): Theme => {
 
 /** 读取本地存储的用户偏好，无记录或非法值时回退到 auto */
 const getStoredPreference = (): Preference => {
-  if (typeof window === "undefined") return "auto";
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return "auto";
+  try {
+    if (typeof window === "undefined") return "auto";
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+    return "auto";
+  } catch {
+    return "auto";
+  }
 };
 
 /** 将偏好解析为实际生效的主题 */
 const resolveTheme = (pref: Preference): Theme =>
   pref === "auto" ? getTimeBasedTheme() : pref;
-
-const getInitialTheme = (): Theme => resolveTheme(getStoredPreference());
 
 /** 将主题应用到 <html> 元素的 class 列表 */
 const applyTheme = (theme: Theme) => {
@@ -41,45 +44,76 @@ const applyTheme = (theme: Theme) => {
   }
 };
 
-/** 主题管理 Hook
- *  - 默认偏好 auto：根据本地时间自动切换深色/浅色（18:00~6:00 深色）
- *  - 用户手动 toggle 后固定为所选主题并持久化
- *  - auto 模式下每分钟校正一次，跨过时段阈值时自动切换 */
-export function useTheme() {
-  const [preference, setPreference] = useState<Preference>(getStoredPreference);
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  // 用于在 auto 定时器中避免与手动 toggle 竞态
-  const themeRef = useRef(theme);
-  themeRef.current = theme;
+// ──────────────────────────────────────────────
+// 全局主题 store —— 所有组件共享同一份状态
+// 解决多实例 useTheme 各持独立 state、切换后图表颜色不更新的问题
+// ──────────────────────────────────────────────
+interface ThemeStore {
+  theme: Theme;
+  preference: Preference;
+  toggleTheme: () => void;
+  setTheme: (t: Theme) => void;
+}
 
-  // 应用主题 class 并持久化偏好
-  useEffect(() => {
+const initialPref = getStoredPreference();
+
+export const useThemeStore = create<ThemeStore>((set, get) => ({
+  preference: initialPref,
+  theme: resolveTheme(initialPref),
+  toggleTheme: () => {
+    const next: Theme = get().theme === "dark" ? "light" : "dark";
+    // 手动切换即退出 auto，固定为所选主题
+    set({ theme: next, preference: next });
+  },
+  setTheme: (t: Theme) => set({ theme: t, preference: t }),
+}));
+
+// ──────────────────────────────────────────────
+// 全局副作用：applyTheme + localStorage + auto 定时校正
+// 只初始化一次，避免多组件重复绑定
+// ──────────────────────────────────────────────
+let sideEffectsInitialized = false;
+
+function initThemeSideEffects() {
+  if (sideEffectsInitialized || typeof window === "undefined") return;
+  sideEffectsInitialized = true;
+
+  // store 变化时应用主题 class 并持久化偏好
+  const apply = () => {
+    const { theme, preference } = useThemeStore.getState();
     applyTheme(theme);
-    localStorage.setItem(STORAGE_KEY, preference);
-  }, [theme, preference]);
+    try {
+      localStorage.setItem(STORAGE_KEY, preference);
+    } catch {
+      // 存储不可用时静默忽略
+    }
+  };
+  apply();
+  useThemeStore.subscribe(apply);
 
-  // auto 模式：按本地时间定时校正
-  useEffect(() => {
+  // auto 模式：每分钟按本地时间校正
+  setInterval(() => {
+    const { preference, theme } = useThemeStore.getState();
     if (preference !== "auto") return;
-    const correct = () => {
-      const target = getTimeBasedTheme();
-      if (themeRef.current !== target) {
-        setTheme(target);
-      }
-    };
-    // 首次进入或从手动切回 auto 时立即校正一次
-    correct();
-    const id = setInterval(correct, 60_000);
-    return () => clearInterval(id);
-  }, [preference]);
+    const target = getTimeBasedTheme();
+    if (theme !== target) {
+      useThemeStore.setState({ theme: target });
+    }
+  }, 60_000);
+}
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next: Theme = prev === "dark" ? "light" : "dark";
-      // 手动切换即退出 auto，固定为所选主题
-      setPreference(next);
-      return next;
-    });
+/** 主题管理 Hook：所有组件共享同一份全局状态
+ *  - 默认偏好 auto：根据本地时间自动切换（18:00~6:00 深色）
+ *  - 用户手动 toggle 后固定为所选主题并持久化
+ *  - auto 模式下每分钟校正一次 */
+export function useTheme() {
+  const theme = useThemeStore((s) => s.theme);
+  const preference = useThemeStore((s) => s.preference);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+
+  useEffect(() => {
+    initThemeSideEffects();
   }, []);
 
   return { theme, isDark: theme === "dark", toggleTheme, setTheme, preference };
