@@ -91,9 +91,9 @@ export default function LotteryList({
               {item.term}
             </span>
             <span className="hidden w-24 shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400 sm:block">
-              {item.draw_time}
+              {item.draw_time.slice(0, 10)}
             </span>
-            <div className="flex flex-1 flex-wrap items-center gap-1.5">
+            <div className="flex flex-1 items-center gap-1.5 overflow-x-auto whitespace-nowrap">
               {item.front_numbers.map((n, i) => (
                 <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
               ))}
