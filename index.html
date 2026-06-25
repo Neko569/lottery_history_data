@@ -14,11 +14,18 @@
     <title>彩运 · 开奖历史与走势</title>
     <script>
       // 在 React 渲染前应用主题，避免深色模式闪烁
+      // 偏好优先级：localStorage("light"|"dark") > 跟随本地时间(18:00~6:00 深色)
       (function () {
         try {
           var stored = localStorage.getItem('cai-yun-theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (stored === 'dark' || (!stored && prefersDark)) {
+          var theme;
+          if (stored === 'light' || stored === 'dark') {
+            theme = stored;
+          } else {
+            var h = new Date().getHours();
+            theme = (h >= 18 || h < 6) ? 'dark' : 'light';
+          }
+          if (theme === 'dark') {
             document.documentElement.classList.add('dark');
           }
         } catch (e) {}

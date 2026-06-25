@@ -89,20 +89,25 @@ export default function TrendChart({ type, data }: TrendChartProps) {
   }, [data, period, area, count, trendType]);
 
   const getChartLines = () => {
+    // 数据点描边色：与卡片背景形成对比，避免点融入背景
+    const dotStroke = isDark ? "#16161f" : "#FFFFFF";
     if (trendType === "position") {
-      return Array.from({ length: count }).map((_, i) => (
-        <Line
-          key={`p${i + 1}`}
-          type="monotone"
-          dataKey={`p${i + 1}`}
-          name={`位置${i + 1}`}
-          stroke={PALETTE[i % PALETTE.length]}
-          strokeWidth={2}
-          dot={{ r: 2.5, strokeWidth: 0 }}
-          activeDot={{ r: 5 }}
-          connectNulls
-        />
-      ));
+      return Array.from({ length: count }).map((_, i) => {
+        const color = PALETTE[i % PALETTE.length];
+        return (
+          <Line
+            key={`p${i + 1}`}
+            type="monotone"
+            dataKey={`p${i + 1}`}
+            name={`位置${i + 1}`}
+            stroke={color}
+            strokeWidth={2}
+            dot={{ r: 2.5, fill: color, stroke: dotStroke, strokeWidth: 1 }}
+            activeDot={{ r: 5, fill: color, stroke: dotStroke, strokeWidth: 1.5 }}
+            connectNulls
+          />
+        );
+      });
     } else if (trendType === "sum") {
       return [
         <Line
@@ -112,8 +117,8 @@ export default function TrendChart({ type, data }: TrendChartProps) {
           name="和值"
           stroke="#E63946"
           strokeWidth={2}
-          dot={{ r: 3, strokeWidth: 0 }}
-          activeDot={{ r: 6 }}
+          dot={{ r: 3, fill: "#E63946", stroke: dotStroke, strokeWidth: 1 }}
+          activeDot={{ r: 6, fill: "#E63946", stroke: dotStroke, strokeWidth: 1.5 }}
         />,
         <Line
           key="avg"
@@ -123,8 +128,8 @@ export default function TrendChart({ type, data }: TrendChartProps) {
           stroke="#3A86FF"
           strokeWidth={2}
           strokeDasharray="5 5"
-          dot={{ r: 3, strokeWidth: 0 }}
-          activeDot={{ r: 6 }}
+          dot={{ r: 3, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1 }}
+          activeDot={{ r: 6, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1.5 }}
         />,
       ];
     } else if (trendType === "parity") {
@@ -136,8 +141,8 @@ export default function TrendChart({ type, data }: TrendChartProps) {
           name="偶数个数"
           stroke="#3A86FF"
           strokeWidth={2}
-          dot={{ r: 3, strokeWidth: 0 }}
-          activeDot={{ r: 6 }}
+          dot={{ r: 3, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1 }}
+          activeDot={{ r: 6, fill: "#3A86FF", stroke: dotStroke, strokeWidth: 1.5 }}
         />,
         <Line
           key="odd"
@@ -146,8 +151,8 @@ export default function TrendChart({ type, data }: TrendChartProps) {
           name="奇数个数"
           stroke="#E63946"
           strokeWidth={2}
-          dot={{ r: 3, strokeWidth: 0 }}
-          activeDot={{ r: 6 }}
+          dot={{ r: 3, fill: "#E63946", stroke: dotStroke, strokeWidth: 1 }}
+          activeDot={{ r: 6, fill: "#E63946", stroke: dotStroke, strokeWidth: 1.5 }}
         />,
       ];
     }

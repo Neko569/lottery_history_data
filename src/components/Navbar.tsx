@@ -1,16 +1,17 @@
 import { NavLink } from "react-router-dom";
-import { Home as HomeIcon, Target } from "lucide-react";
+import { Home as HomeIcon, Target, TrendingUp } from "lucide-react";
 import { useLotteryStore } from "@/store/lotteryStore";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 
 /** 全局统一导航栏 —— 在所有页面顶部常驻 */
 export default function Navbar() {
-  // 读取当前彩种，使"对比分析"入口带上对应 type 参数
+  // 读取当前彩种，使"走势/对比分析"入口带上对应 type
   const activeLottery = useLotteryStore((s) => s.activeLottery);
 
   const navItems = [
     { to: "/", label: "首页", icon: HomeIcon, end: true },
+    { to: `/trend/${activeLottery}`, label: "走势", icon: TrendingUp, end: false },
     { to: `/match?type=${activeLottery}`, label: "对比分析", icon: Target, end: false },
   ];
 
