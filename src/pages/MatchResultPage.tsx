@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URL, generateTickets, generateTicketWithCounts } from "@/utils/lottery";
+import { LOTTERY_RULES, DATA_REPO_URL, generateTickets, generateTicketWithCounts, toLotteryType } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
 import { isDarkMode } from "@/hooks/useTheme";
@@ -259,14 +259,25 @@ export default function MatchResultPage() {
   const searchParams = new URLSearchParams(location.search);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const type = searchParams.get("type") as LotteryType || "dlt";
+  const type = toLotteryType(searchParams.get("type"));
   const ticketsJson = searchParams.get("tickets");
-  const initialTickets: LotteryTicket[] = ticketsJson
-    ? JSON.parse(ticketsJson).map((t: RandomTicket) => ({ front: t.front, back: t.back }))
-    : [];
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
-  const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(initialTickets.length > 0 ? initialTickets : [{ front: [], back: [] }]);
+  const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(() => {
+    const empty = [{ front: [], back: [] }] as LotteryTicket[];
+    if (!ticketsJson) return empty;
+    try {
+      const parsed = JSON.parse(ticketsJson);
+      if (!Array.isArray(parsed)) return empty;
+      const mapped = parsed
+        .filter((t: unknown): t is RandomTicket =>
+          !!t && typeof t === "object" && Array.isArray((t as RandomTicket).front) && Array.isArray((t as RandomTicket).back))
+        .map((t: RandomTicket) => ({ front: t.front, back: t.back }));
+      return mapped.length > 0 ? mapped : empty;
+    } catch {
+      return empty;
+    }
+  });
   
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);

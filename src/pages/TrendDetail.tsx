@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { LotteryType } from "@/types/lottery";
-import { LOTTERY_RULES } from "@/utils/lottery";
+import { LOTTERY_RULES, toLotteryType } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import FullNumberTrendChart from "@/components/FullNumberTrendChart";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ const TREND_TYPES: LotteryType[] = ["dlt", "ssq"];
 export default function TrendDetail() {
   const navigate = useNavigate();
   const params = useParams<{ type: LotteryType }>();
-  const type = params.type || "dlt";
+  const type = toLotteryType(params.type);
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);
   const fetchRemoteData = useLotteryStore((s) => s.fetchRemoteData);
