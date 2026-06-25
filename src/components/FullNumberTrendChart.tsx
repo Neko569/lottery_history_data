@@ -257,7 +257,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
     <div className="space-y-4">
       {/* 控制面板 */}
       <div className="card p-4">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <div className="seg">
               <button
@@ -282,7 +282,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               </button>
             </div>
             <div className="h-4 w-px bg-zinc-300" />
-            <div className="seg">
+            <div className="seg flex flex-wrap sm:inline-flex">
               {(Object.keys(TREND_TYPE_LABELS) as TrendType[]).map((t) => (
                 <button
                   key={t}
@@ -295,8 +295,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               ))}
             </div>
           </div>
-          <div className="flex-1" />
-          <div className="seg">
+          <div className="seg flex flex-wrap sm:inline-flex sm:ml-auto">
             {TREND_PERIOD_OPTIONS.map((p) => (
               <button
                 key={p}
@@ -372,7 +371,11 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
                   labelStyle={{ color: "#B8932B", fontFamily: "JetBrains Mono" }}
                   itemStyle={{ color: chartColors.tooltipItem }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, paddingTop: 8, maxHeight: 48, overflow: "hidden" }}
+                  iconType="circle"
+                  iconSize={9}
+                />
                 {getChartLines()}
               </LineChart>
             </ResponsiveContainer>
