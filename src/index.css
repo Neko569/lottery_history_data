@@ -127,7 +127,11 @@ body {
     @apply rounded-full px-3 py-1.5 text-sm font-medium text-zinc-500 transition-all duration-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100;
   }
   .seg-item-active {
-    @apply bg-crimson text-white shadow-glow;
+    /* 补全 hover / dark 变体：seg-item 的 dark:text-zinc-400 与 hover:text-zinc-900
+       特异性更高（:is(.dark *) / :hover 达 0,2,0），会覆盖此处的 text-white (0,1,0)，
+       导致深色模式 / 悬停时激活按钮文字变灰。此处用同变体的 text-white 提升特异性，
+       确保激活态在任意主题与悬停状态下文字均为白色，与走势 / 对比页一致。 */
+    @apply bg-crimson text-white shadow-glow hover:text-white dark:text-white dark:hover:text-white;
   }
 }
 
