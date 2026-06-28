@@ -183,18 +183,18 @@ const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof
       // 复式：上下两排布局
       const centerX = width / 2;
 
-      // 前区（上排）
+      // 前区（上排）—— 左对齐
       const frontWidth = ticket.front.length * ballSize + (ticket.front.length - 1) * ballGap;
-      const frontStartX = centerX - frontWidth / 2;
+      const frontStartX = padding;
       ticket.front.forEach((num, i) => {
         const x = frontStartX + i * (ballSize + ballGap) + ballSize / 2;
         const y = currentY + ballSize / 2;
         drawBall(x, y, num, true);
       });
 
-      // 后区（下排）
+      // 后区（下排）—— 左对齐
       const backWidth = ticket.back.length * ballSize + (ticket.back.length - 1) * ballGap;
-      const backStartX = centerX - backWidth / 2;
+      const backStartX = padding;
       ticket.back.forEach((num, i) => {
         const x = backStartX + i * (ballSize + ballGap) + ballSize / 2;
         const y = currentY + ballSize + rowGap + ballSize / 2;
