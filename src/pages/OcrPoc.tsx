@@ -109,8 +109,15 @@ async function fetchWithTimeout(url: string, timeoutMs = 60000): Promise<Respons
 /**
  * 把识别行按 Y 坐标聚合成"行"（彩票号都是一行一组）。
  * PP-OCR 检测有时会把一行号码拆成多个 box，导致看起来像"按列识别"。
- * 这里按 box 顶部 Y 坐标分组：Y 差小于阈值（行高的一半）视为同一行，
- * 行内按 X 排序后拼接文本。
+ *
+ * 算法：
+ * 1. 计算所有 box 行高的中位数作为参考行高 H（不受个别异常 box 影响）
+ * 2. 按 topY 排序，相邻 box 的 topY 差 <= H * factor 视为同一行
+ * 3. factor 由调用方传入（合并强度）：越大越容易合并，越小越容易分行
+ * 4. 行内按 X 排序后拼接文本
+ *
+ * 注意：用中位行高而非"累积平均行高"，避免前面合并多了导致后面阈值漂移、
+ * 误吞本应独立的行（这是换行错乱的常见原因）。
  */
 interface OcrRow {
   text: string;
@@ -118,7 +125,14 @@ interface OcrRow {
   lineCount: number;
 }
 
-function groupLinesIntoRows(lines: OcrLine[]): OcrRow[] {
+function median(nums: number[]): number {
+  if (nums.length === 0) return 0;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function groupLinesIntoRows(lines: OcrLine[], factor = 0.5): OcrRow[] {
   const items = lines
     .filter((l) => l.text && l.box && l.box.length >= 4)
     .map((l) => {
@@ -131,26 +145,27 @@ function groupLinesIntoRows(lines: OcrLine[]): OcrRow[] {
     });
   if (items.length === 0) return [];
 
+  // 参考行高：取所有 box 行高的中位数，稳健不受异常值影响
+  const refHeight = Math.max(1, median(items.map((it) => it.height)));
+  const threshold = refHeight * factor;
+  console.log(`[OCR] 按行合并: 中位行高=${refHeight.toFixed(1)}, factor=${factor}, 阈值=${threshold.toFixed(1)}`);
+
   // 按 Y 排序
   items.sort((a, b) => a.topY - b.topY);
 
-  // 聚合：相邻行 Y 差 < 当前平均行高的 0.6 倍视为同一行
+  // 聚合：与当前行基准 topY（该行第一个 box 的 topY）之差 <= 阈值视为同一行
   const rows: typeof items[] = [];
   let currentRow = [items[0]];
-  let currentAvgHeight = items[0].height;
+  let rowBaseY = items[0].topY;
 
   for (let i = 1; i < items.length; i++) {
     const item = items[i];
-    const lastInRow = currentRow[currentRow.length - 1];
-    const threshold = Math.max(currentAvgHeight, item.height) * 0.6;
-    if (item.topY - lastInRow.topY <= threshold) {
+    if (item.topY - rowBaseY <= threshold) {
       currentRow.push(item);
-      currentAvgHeight =
-        (currentAvgHeight * (currentRow.length - 1) + item.height) / currentRow.length;
     } else {
       rows.push(currentRow);
       currentRow = [item];
-      currentAvgHeight = item.height;
+      rowBaseY = item.topY;
     }
   }
   rows.push(currentRow);
@@ -323,6 +338,8 @@ export default function OcrPoc() {
   const [preprocessEnabled, setPreprocessEnabled] = useState(false);
   /** 是否按行合并识别结果（默认开启，彩票号都是一行一组） */
   const [groupRows, setGroupRows] = useState(true);
+  /** 按行合并的强度：越大越容易合并同行，越小越容易分行 */
+  const [mergeFactor, setMergeFactor] = useState(0.5);
   /** 框选模式：开启后可在图片上拖拽框选区域，只识别框内部分 */
   const [cropMode, setCropMode] = useState(false);
   /** 当前框选区域（基于显示尺寸的像素坐标），null 表示未框选 */
@@ -521,7 +538,7 @@ export default function OcrPoc() {
         // 彩票号都是一行一组，按 box 的 Y 坐标聚合后行内按 X 排序拼接
         let recognized: RecognizedItem[];
         if (groupRows) {
-          const rows = groupLinesIntoRows(lines);
+          const rows = groupLinesIntoRows(lines, mergeFactor);
           recognized = rows
             .map((r) => ({ text: r.text, score: r.mean }))
             .filter((it) => it.text.length > 0);
@@ -550,7 +567,7 @@ export default function OcrPoc() {
         setStage("error");
       }
     },
-    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL, groupRows],
+    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL, groupRows, mergeFactor],
   );
 
   /** 处理图片文件：校验 → 显示 → 识别 */
@@ -687,6 +704,20 @@ export default function OcrPoc() {
                 />
                 按行合并
               </label>
+              {groupRows && (
+                <label className="flex items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                  合并强度
+                  <select
+                    value={mergeFactor}
+                    onChange={(e) => setMergeFactor(Number(e.target.value))}
+                    className="h-6 rounded border border-ink-600 bg-transparent px-1 text-[11px] text-zinc-700 dark:text-zinc-300"
+                  >
+                    <option value={0.3}>严格（易分行）</option>
+                    <option value={0.5}>标准</option>
+                    <option value={0.8}>宽松（易合并）</option>
+                  </select>
+                </label>
+              )}
               <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
                 <input
                   type="checkbox"
