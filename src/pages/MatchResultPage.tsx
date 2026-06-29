@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp } from "lucide-react";
+import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, DATA_REPO_URLS, generateTickets, generateTicketWithCounts, toLotteryType } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -263,6 +263,101 @@ interface LotteryTicket {
 const isCompoundTicket = (ticket: { front: string[]; back: string[] }, rule: { frontCount: number; backCount: number }): boolean =>
   ticket.front.length > rule.frontCount || ticket.back.length > rule.backCount;
 
+/** 文本导入解析结果 */
+interface ParseResult {
+  tickets: LotteryTicket[];
+  errors: string[];
+}
+
+/** 将一段号码字符串解析为补零后的号码数组，非法时返回 error */
+const normalizeNumberGroup = (
+  str: string,
+  label: string,
+  max: number,
+): { nums: string[]; error?: string } => {
+  const tokens = str
+    .split(/[\s,，、;；]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  const nums: string[] = [];
+  for (const tok of tokens) {
+    const n = parseInt(tok, 10);
+    if (Number.isNaN(n) || n < 1 || n > max) {
+      return { nums: [], error: `${label}号码 "${tok}" 不合法（应在 1-${max} 之间）` };
+    }
+    nums.push(String(n).padStart(2, "0"));
+  }
+  return { nums };
+};
+
+/**
+ * 解析用户粘贴的文本为多注号码。支持以下每行格式：
+ *  - "04 06 07 33 34 + 05 08"   （用 + 分隔前后区，支持复式）
+ *  - "04,06,07,33,34,05,08"      （逗号/空格分隔，无 + 时按 frontCount 拆分前后区，仅适用单式）
+ * 单个位号码可不补零（如 4 6 7 33 34 + 5 8）。
+ */
+const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax: number; backCount: number; backMax: number; frontLabel: string; backLabel: string }): ParseResult => {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  const tickets: LotteryTicket[] = [];
+  const errors: string[] = [];
+
+  lines.forEach((line, idx) => {
+    const lineNo = idx + 1;
+    const plusMatch = line.match(/\+/);
+
+    if (plusMatch) {
+      const [frontPart, backPart] = line.split("+");
+      const frontRes = normalizeNumberGroup(frontPart, rule.frontLabel, rule.frontMax);
+      if (frontRes.error) {
+        errors.push(`第${lineNo}行: ${frontRes.error}`);
+        return;
+      }
+      const backRes = normalizeNumberGroup(backPart, rule.backLabel, rule.backMax);
+      if (backRes.error) {
+        errors.push(`第${lineNo}行: ${backRes.error}`);
+        return;
+      }
+      if (frontRes.nums.length < rule.frontCount) {
+        errors.push(`第${lineNo}行: ${rule.frontLabel}号码不足，至少需要 ${rule.frontCount} 个`);
+        return;
+      }
+      if (backRes.nums.length < rule.backCount) {
+        errors.push(`第${lineNo}行: ${rule.backLabel}号码不足，至少需要 ${rule.backCount} 个`);
+        return;
+      }
+      tickets.push({ front: frontRes.nums, back: backRes.nums });
+    } else {
+      const tokens = line
+        .split(/[\s,，、;；]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+      if (tokens.length < rule.frontCount + rule.backCount) {
+        errors.push(`第${lineNo}行: 号码数量不足，至少需要 ${rule.frontCount + rule.backCount} 个`);
+        return;
+      }
+      const frontTokens = tokens.slice(0, rule.frontCount);
+      const backTokens = tokens.slice(rule.frontCount);
+      const frontRes = normalizeNumberGroup(frontTokens.join(" "), rule.frontLabel, rule.frontMax);
+      if (frontRes.error) {
+        errors.push(`第${lineNo}行: ${frontRes.error}`);
+        return;
+      }
+      const backRes = normalizeNumberGroup(backTokens.join(" "), rule.backLabel, rule.backMax);
+      if (backRes.error) {
+        errors.push(`第${lineNo}行: ${backRes.error}`);
+        return;
+      }
+      if (backRes.nums.length > rule.backCount) {
+        errors.push(`第${lineNo}行: 无 + 分隔时仅支持单式，${rule.backLabel}号码多于 ${rule.backCount} 个，请用 + 分隔前后区`);
+        return;
+      }
+      tickets.push({ front: frontRes.nums, back: backRes.nums });
+    }
+  });
+
+  return { tickets, errors };
+};
+
 export default function MatchResultPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -274,6 +369,14 @@ export default function MatchResultPage() {
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
+  /** 文本导入区折叠状态：默认折叠，需要时展开 */
+  const [importCollapsed, setImportCollapsed] = useState(true);
+  /** 文本导入输入框内容 */
+  const [importText, setImportText] = useState("");
+  /** 文本导入解析错误信息（成功时为空） */
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  /** 文本导入文件输入引用 */
+  const textFileInputRef = useRef<HTMLInputElement>(null);
   /** 中奖明细折叠状态：记录已折叠的注索引，默认全部展开 */
   const [collapsedMatches, setCollapsedMatches] = useState<Set<number>>(new Set());
   const [customTickets, setCustomTickets] = useState<LotteryTicket[]>(() => {
@@ -444,6 +547,34 @@ export default function MatchResultPage() {
     const file = e.target.files?.[0];
     if (file) {
       await uploadData(type, file);
+    }
+    e.target.value = "";
+  };
+
+  /** 从文本框导入号码：解析后替换当前选号，解析错误时保留原选号并展示错误 */
+  const handleImportText = () => {
+    if (!importText.trim()) {
+      setImportErrors(["请先输入号码文本"]);
+      return;
+    }
+    const { tickets, errors } = parseTicketsFromText(importText, rule);
+    setImportErrors(errors);
+    if (tickets.length > 0) {
+      setCustomTickets(tickets);
+    }
+  };
+
+  /** 从 .txt 文件导入文本到输入框（不直接解析，便于用户确认后再导入） */
+  const handleTextFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImportText(String(reader.result || ""));
+        setImportErrors([]);
+        setImportCollapsed(false);
+      };
+      reader.readAsText(file);
     }
     e.target.value = "";
   };
@@ -692,6 +823,104 @@ export default function MatchResultPage() {
 
                   {!pickCollapsed && (
                     <div className="space-y-4 border-t border-ink-700/60 p-4">
+                      {/* 文本导入区：可折叠，支持粘贴多行号码或从 .txt 文件导入 */}
+                      <div className="overflow-hidden rounded-xl border border-ink-700/60 bg-ink-900/30">
+                        <button
+                          type="button"
+                          onClick={() => setImportCollapsed((v) => !v)}
+                          className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-ink-800/40"
+                        >
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-3.5 w-3.5 text-indigo" />
+                            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">文本导入</span>
+                            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">粘贴或从文件导入多注号码</span>
+                          </div>
+                          {importCollapsed ? (
+                            <ChevronDown className="h-4 w-4 text-zinc-500" />
+                          ) : (
+                            <ChevronUp className="h-4 w-4 text-zinc-500" />
+                          )}
+                        </button>
+
+                        {!importCollapsed && (
+                          <div className="space-y-3 border-t border-ink-700/60 p-4">
+                            <textarea
+                              value={importText}
+                              onChange={(e) => {
+                                setImportText(e.target.value);
+                                if (importErrors.length > 0) setImportErrors([]);
+                              }}
+                              placeholder={`每行一注，支持以下格式：\n04 06 07 33 34 + 05 08\n04,06,07,33,34,05,08\n\n个位号码可不补零（如 4 6 7 33 34 + 5 8）`}
+                              rows={6}
+                              className="w-full resize-y rounded-lg border border-ink-600 bg-ink-950/60 px-3 py-2 font-mono text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo"
+                            />
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleImportText}
+                                className="btn btn-sm bg-indigo text-white hover:bg-indigo/90"
+                              >
+                                <FileText className="h-3 w-3" />
+                                导入号码
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => textFileInputRef.current?.click()}
+                                className="btn btn-sm"
+                              >
+                                <FileUp className="h-3 w-3" />
+                                从文件导入
+                              </button>
+                              <input
+                                ref={textFileInputRef}
+                                type="file"
+                                accept=".txt,.csv,text/plain,text/csv"
+                                className="hidden"
+                                onChange={handleTextFileChange}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setImportText("");
+                                  setImportErrors([]);
+                                }}
+                                className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
+                              >
+                                清空文本
+                              </button>
+                              <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-400">
+                                {rule.frontCount}个{rule.frontLabel} + {rule.backCount}个{rule.backLabel} 为一注
+                              </span>
+                            </div>
+
+                            {importErrors.length > 0 && (
+                              <div className="rounded-lg border border-crimson/40 bg-crimson/10 px-3 py-2 text-xs text-crimson-400">
+                                <div className="mb-1 flex items-center gap-1 font-medium">
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                  解析错误（{importErrors.length}行）
+                                </div>
+                                <ul className="ml-4 list-disc space-y-0.5">
+                                  {importErrors.slice(0, 8).map((err, i) => (
+                                    <li key={i}>{err}</li>
+                                  ))}
+                                  {importErrors.length > 8 && (
+                                    <li className="text-zinc-500">还有 {importErrors.length - 8} 条错误...</li>
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+
+                            <div className="rounded-lg bg-ink-950/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                              <div className="mb-1 font-medium text-zinc-400 dark:text-zinc-300">格式说明</div>
+                              <div>· 用 <span className="font-mono text-zinc-300">+</span> 分隔前后区，支持复式（如 5+3）</div>
+                              <div>· 无 <span className="font-mono text-zinc-300">+</span> 时按前{rule.frontCount}个为{rule.frontLabel}、其余为{rule.backLabel}自动拆分（仅单式）</div>
+                              <div>· 分隔符支持空格、逗号、顿号；号码范围 {rule.frontLabel} 1-{rule.frontMax}，{rule.backLabel} 1-{rule.backMax}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {type === "dlt" && (
                         <div className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
                     <div className="mb-2 flex items-center gap-2">
