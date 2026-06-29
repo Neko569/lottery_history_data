@@ -51,10 +51,13 @@ export default function OcrPoc() {
     setProgressMsg("正在加载 PaddleOCR 模型（首次约 5-10MB，请稍候）...");
     // 动态 import，避免 OCR SDK 进入主 bundle
     const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
+    // 不使用 worker 模式：worker entry chunk 达 10MB+，
+    // 在 Cloudflare Pages 等静态托管下加载不稳定（易超时/被扩展拦截），
+    // 主线程单线程 WASM 推理仅短暂阻塞 ~500-1500ms，可接受。
     const ocr = await PaddleOCR.create({
       lang: "ch",
       ocrVersion: "PP-OCRv5",
-      worker: true,
+      worker: false,
       ortOptions: {
         // 单线程 WASM + SIMD，无需 COOP/COEP，GitHub Pages 直接可用
         backend: "wasm",
@@ -89,6 +92,8 @@ export default function OcrPoc() {
         const ocr = await ensureOcr();
         setStage("recognizing");
         setProgressMsg("正在识别图片...");
+        // 主线程模式下 OCR 会阻塞 UI，先让浏览器渲染 loading 状态
+        await new Promise((r) => setTimeout(r, 0));
         const results = await ocr.predict(file);
         const result = results[0];
         if (!result) {
