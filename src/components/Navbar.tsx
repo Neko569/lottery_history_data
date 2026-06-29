@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home as HomeIcon, Target, TrendingUp } from "lucide-react";
+import { Home as HomeIcon, Target, TrendingUp, ScanText } from "lucide-react";
 import { useLotteryStore } from "@/store/lotteryStore";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
@@ -13,6 +13,7 @@ export default function Navbar() {
     { to: "/", label: "首页", icon: HomeIcon, end: true },
     { to: `/trend/${activeLottery}`, label: "走势", icon: TrendingUp, end: false },
     { to: `/match?type=${activeLottery}`, label: "对比分析", icon: Target, end: false },
+    { to: "/ocr-poc", label: "OCR", icon: ScanText, end: false },
   ];
 
   return (
