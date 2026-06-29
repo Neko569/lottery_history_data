@@ -231,10 +231,21 @@ export default function OcrPoc() {
   const [preprocessInfo, setPreprocessInfo] = useState("");
   /** 是否启用预处理（默认关闭，彩票原图质量通常足够，预处理可能反而破坏） */
   const [preprocessEnabled, setPreprocessEnabled] = useState(false);
+  /** 框选模式：开启后可在图片上拖拽框选区域，只识别框内部分 */
+  const [cropMode, setCropMode] = useState(false);
+  /** 当前框选区域（基于显示尺寸的像素坐标），null 表示未框选 */
+  const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  /** 是否正在拖拽框选 */
+  const [isDragging, setIsDragging] = useState(false);
+  /** 当前已上传的文件，用于框选后重新识别 */
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
 
   const paddleRef = useRef<{ init: (opts: unknown) => Promise<void>; ocr: (dataURL: string) => Promise<OcrOutput> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const imgWrapRef = useRef<HTMLDivElement>(null);
+  const imgElRef = useRef<HTMLImageElement>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   /** 懒加载初始化 OCR（首次识别时触发，按需加载 CDN 资源） */
   const ensureOcr = useCallback(async () => {
@@ -281,21 +292,90 @@ export default function OcrPoc() {
     return paddleRef.current;
   }, []);
 
-  /** 处理图片文件：初始化 OCR → 识别 → 展示结果 */
-  const handleFile = useCallback(
-    async (file: File) => {
-      if (!file.type.startsWith("image/")) {
-        setErrorMsg("请选择图片文件");
-        setStage("error");
-        return;
+  /**
+   * 根据框选区域裁剪原图（基于自然尺寸，避免显示缩放导致的精度损失）。
+   * cropRect 是基于图片显示尺寸的坐标，需按显示/自然尺寸比例换算到原图坐标。
+   * 返回裁剪后的 dataURL；无框选或失败时返回原图 dataURL。
+   */
+  const cropDataURL = useCallback(
+    async (rawDataURL: string): Promise<{ dataURL: string; info: string }> => {
+      if (!cropRect || !imgElRef.current) {
+        return { dataURL: rawDataURL, info: "未框选，识别整图" };
       }
-      setErrorMsg("");
-      setImageUrl(URL.createObjectURL(file));
-      setItems([]);
-      setTotalText("");
-      setElapsedMs(0);
-      setPreprocessInfo("");
+      const img = imgElRef.current;
+      const scaleX = img.naturalWidth / img.clientWidth;
+      const scaleY = img.naturalHeight / img.clientHeight;
+      // 框选坐标是基于 img 元素左上角的，换算到自然像素
+      const sx = Math.max(0, Math.round(cropRect.x * scaleX));
+      const sy = Math.max(0, Math.round(cropRect.y * scaleY));
+      const sw = Math.max(1, Math.round(cropRect.w * scaleX));
+      const sh = Math.max(1, Math.round(cropRect.h * scaleY));
+      console.log(`[OCR] 框选裁剪: 显示(${cropRect.x},${cropRect.y},${cropRect.w}x${cropRect.h}) → 原图(${sx},${sy},${sw}x${sh})`);
 
+      const fullImg = await dataURLToImage(rawDataURL);
+      const canvas = document.createElement("canvas");
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return { dataURL: rawDataURL, info: "裁剪失败（canvas 不可用）" };
+      ctx.drawImage(fullImg, sx, sy, sw, sh, 0, 0, sw, sh);
+      const croppedDataURL = canvas.toDataURL("image/png");
+      return { dataURL: croppedDataURL, info: `框选 ${sw}x${sh}（原图 ${img.naturalWidth}x${img.naturalHeight}）` };
+    },
+    [cropRect],
+  );
+
+  /** 框选拖拽：鼠标按下 */
+  const onCropMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!cropMode || !imgElRef.current) return;
+      const img = imgElRef.current;
+      const rect = img.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      dragStartRef.current = { x, y };
+      setIsDragging(true);
+      setCropRect({ x, y, w: 0, h: 0 });
+      e.preventDefault();
+    },
+    [cropMode],
+  );
+
+  /** 框选拖拽：鼠标移动 */
+  const onCropMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging || !dragStartRef.current || !imgElRef.current) return;
+      const img = imgElRef.current;
+      const rect = img.getBoundingClientRect();
+      const x = Math.max(0, Math.min(img.clientWidth, e.clientX - rect.left));
+      const y = Math.max(0, Math.min(img.clientHeight, e.clientY - rect.top));
+      const start = dragStartRef.current;
+      setCropRect({
+        x: Math.min(start.x, x),
+        y: Math.min(start.y, y),
+        w: Math.abs(x - start.x),
+        h: Math.abs(y - start.y),
+      });
+    },
+    [isDragging],
+  );
+
+  /** 框选拖拽：鼠标松开 */
+  const onCropMouseUp = useCallback(() => {
+    setIsDragging(false);
+    dragStartRef.current = null;
+    // 太小的框选视为取消
+    if (cropRect && (cropRect.w < 10 || cropRect.h < 10)) {
+      setCropRect(null);
+    }
+  }, [cropRect]);
+
+  /**
+   * 执行识别流程：初始化 OCR → 裁剪（若框选）→ 预处理（若开启）→ OCR → 解析结果。
+   * 不处理文件校验和 UI 状态清理，由调用方负责。
+   */
+  const recognize = useCallback(
+    async (file: File) => {
       try {
         const Paddle = await ensureOcr();
         setStage("recognizing");
@@ -304,15 +384,28 @@ export default function OcrPoc() {
         console.log("[OCR] ===== 开始识别 =====");
         console.log("[OCR] 文件:", file.name, `${(file.size / 1024).toFixed(1)}KB`, file.type);
 
+        // 1. 先裁剪（如果开启了框选模式且有框选区域）
+        let workingDataURL = rawDataURL;
+        let cropInfo = "未框选";
+        if (cropMode && cropRect) {
+          // 等待图片渲染，确保 imgElRef 有正确尺寸
+          await new Promise((r) => setTimeout(r, 50));
+          const r = await cropDataURL(rawDataURL);
+          workingDataURL = r.dataURL;
+          cropInfo = r.info;
+          console.log("[OCR] 裁剪:", cropInfo);
+        }
+
+        // 2. 再预处理（如果开启）
         setProgressMsg("正在预处理图片...");
-        let processedDataURL = rawDataURL;
-        let info = "未预处理（原图识别）";
+        let processedDataURL = workingDataURL;
+        let info = cropInfo;
         if (preprocessEnabled) {
-          const r = await preprocessImage(rawDataURL);
+          const r = await preprocessImage(workingDataURL);
           processedDataURL = r.dataURL;
-          info = r.info;
+          info = `${cropInfo} + ${r.info}`;
         } else {
-          console.log("[OCR] 跳过预处理，使用原图识别");
+          console.log("[OCR] 跳过预处理");
         }
         setPreprocessInfo(info);
 
@@ -351,8 +444,41 @@ export default function OcrPoc() {
         setStage("error");
       }
     },
-    [ensureOcr, preprocessEnabled],
+    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL],
   );
+
+  /** 处理图片文件：校验 → 显示 → 识别 */
+  const handleFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        setErrorMsg("请选择图片文件");
+        setStage("error");
+        return;
+      }
+      setErrorMsg("");
+      setImageUrl(URL.createObjectURL(file));
+      setCurrentFile(file);
+      setItems([]);
+      setTotalText("");
+      setElapsedMs(0);
+      setPreprocessInfo("");
+      // 新上传时清空旧框选（坐标基于旧图尺寸，已失效）
+      setCropRect(null);
+      await recognize(file);
+    },
+    [recognize],
+  );
+
+  /** 用当前图片和当前框选重新识别（不清空框选，用于框选后重识别） */
+  const reRecognize = useCallback(async () => {
+    if (!currentFile) return;
+    setItems([]);
+    setTotalText("");
+    setElapsedMs(0);
+    setPreprocessInfo("");
+    setErrorMsg("");
+    await recognize(currentFile);
+  }, [currentFile, recognize]);
 
   useEffect(() => {
     return () => {
@@ -422,7 +548,31 @@ export default function OcrPoc() {
                 <Upload className="h-3.5 w-3.5" />
                 上传图片
               </button>
-              <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+              {currentFile && (
+                <button
+                  type="button"
+                  onClick={reRecognize}
+                  disabled={stage === "loading-model" || stage === "recognizing" || (cropMode && !cropRect)}
+                  className="btn btn-sm bg-indigo text-white hover:bg-indigo/90"
+                  title={cropMode && !cropRect ? "请先在图片上拖拽框选区域" : "用当前图片和框选重新识别"}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  重新识别
+                </button>
+              )}
+              <label className={cn("flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400", currentFile ? "" : "ml-auto")}>
+                <input
+                  type="checkbox"
+                  checked={cropMode}
+                  onChange={(e) => {
+                    setCropMode(e.target.checked);
+                    if (!e.target.checked) setCropRect(null);
+                  }}
+                  className="h-3 w-3 cursor-pointer"
+                />
+                框选模式
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
                 <input
                   type="checkbox"
                   checked={preprocessEnabled}
@@ -464,11 +614,43 @@ export default function OcrPoc() {
 
             <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-dashed border-ink-600 bg-ink-950/30 p-4">
               {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt="待识别图片"
-                  className="max-h-[400px] w-auto max-w-full object-contain"
-                />
+                <div
+                  ref={imgWrapRef}
+                  className={cn(
+                    "relative inline-block select-none",
+                    cropMode && "cursor-crosshair",
+                  )}
+                  onMouseDown={onCropMouseDown}
+                  onMouseMove={onCropMouseMove}
+                  onMouseUp={onCropMouseUp}
+                  onMouseLeave={onCropMouseUp}
+                >
+                  <img
+                    ref={imgElRef}
+                    src={imageUrl}
+                    alt="待识别图片"
+                    className="max-h-[400px] w-auto max-w-full object-contain pointer-events-none"
+                    draggable={false}
+                  />
+                  {cropMode && cropRect && cropRect.w > 0 && cropRect.h > 0 && (
+                    <div
+                      className="absolute border-2 border-indigo bg-indigo/20 pointer-events-none"
+                      style={{
+                        left: cropRect.x,
+                        top: cropRect.y,
+                        width: cropRect.w,
+                        height: cropRect.h,
+                      }}
+                    />
+                  )}
+                  {cropMode && !cropRect && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <span className="rounded bg-black/60 px-2 py-1 text-[10px] text-white">
+                        在图片上拖拽框选识别区域
+                      </span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="text-center text-zinc-500 dark:text-zinc-400">
                   <ImageIcon className="mx-auto mb-2 h-10 w-10 opacity-50" />
