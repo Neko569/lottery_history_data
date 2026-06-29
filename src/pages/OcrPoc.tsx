@@ -314,6 +314,78 @@ async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info
 }
 
 /**
+ * 对比度增强（CLAHE），用于提升检测阶段对偏淡数字（如漏检的"13"）的召回。
+ *
+ * 策略：转 LAB 颜色空间，对亮度通道 L 做 CLAHE（限制对比度自适应直方图均衡），
+ * 再转回 BGR。保留颜色信息、不二值化，因此不会像二值化那样破坏彩票号码识别。
+ *
+ * 与 preprocessImage 的区别：preprocessImage 做放大+灰度+去噪（尺寸处理）；
+ * 本函数只增强对比度，二者可叠加。失败时回退原图。
+ */
+async function enhanceContrast(dataURL: string): Promise<{ dataURL: string; info: string }> {
+  const cv = (window as unknown as { cv?: any }).cv;
+  if (!cv || !cv.Mat) {
+    console.warn("[OCR] OpenCV 不可用，跳过对比度增强");
+    return { dataURL, info: "未增强（OpenCV 不可用）" };
+  }
+  const t0 = performance.now();
+  let src: any, lab: any, channels: any, l: any, clahe: any, merged: any;
+  try {
+    const img = await dataURLToImage(dataURL);
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d context 不可用");
+    ctx.drawImage(img, 0, 0);
+    src = cv.imread(canvas);
+
+    // RGBA → BGR（去 alpha），CLAHE 需要 3 通道
+    let bgr: any = src;
+    if (src.channels() === 4) {
+      bgr = new cv.Mat();
+      cv.cvtColor(src, bgr, cv.COLOR_RGBA2BGR);
+      src.delete();
+      src = bgr;
+    }
+
+    // 转 LAB，对 L 通道做 CLAHE
+    lab = new cv.Mat();
+    cv.cvtColor(src, lab, cv.COLOR_BGR2Lab);
+    channels = new cv.MatVector();
+    cv.split(lab, channels);
+    l = channels.get(0);
+    clahe = cv.createCLAHE(2.0, new cv.Size(8, 8));
+    clahe.apply(l, l);
+    // 写回 L 通道（MatVector.get 返回的是视图，apply 原地修改）
+    channels.set(0, l);
+    merged = new cv.Mat();
+    cv.merge(channels, merged);
+    cv.cvtColor(merged, merged, cv.COLOR_Lab2BGR);
+
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = merged.cols;
+    outCanvas.height = merged.rows;
+    cv.imshow(outCanvas, merged);
+    const outDataURL = outCanvas.toDataURL("image/png");
+    const elapsed = performance.now() - t0;
+    const info = `CLAHE对比度增强 ${merged.cols}x${merged.rows} (${elapsed.toFixed(0)}ms)`;
+    console.log(`[OCR] 对比度增强完成: ${info}`);
+    return { dataURL: outDataURL, info };
+  } catch (e) {
+    console.warn("[OCR] 对比度增强失败，回退原图:", e);
+    return { dataURL, info: `增强失败: ${e instanceof Error ? e.message : String(e)}` };
+  } finally {
+    try { src?.delete?.(); } catch { /* ignore */ }
+    try { lab?.delete?.(); } catch { /* ignore */ }
+    try { l?.delete?.(); } catch { /* ignore */ }
+    try { merged?.delete?.(); } catch { /* ignore */ }
+    try { clahe?.delete?.(); } catch { /* ignore */ }
+    try { channels?.delete?.(); } catch { /* ignore */ }
+  }
+}
+
+/**
  * PaddleOCR POC 页面（CDN 加载方案）
  *
  * 所有 OCR 依赖（onnxruntime-web、opencv.js、esearch-ocr、模型文件）均运行时从
@@ -340,6 +412,8 @@ export default function OcrPoc() {
   const [groupRows, setGroupRows] = useState(true);
   /** 按行合并的强度：越大越容易合并同行，越小越容易分行 */
   const [mergeFactor, setMergeFactor] = useState(0.5);
+  /** 对比度增强（CLAHE），尝试提升检测对偏淡数字的召回，默认关闭 */
+  const [contrastEnhance, setContrastEnhance] = useState(false);
   /** 框选模式：开启后可在图片上拖拽框选区域，只识别框内部分 */
   const [cropMode, setCropMode] = useState(false);
   /** 当前框选区域（基于显示尺寸的像素坐标），null 表示未框选 */
@@ -507,7 +581,17 @@ export default function OcrPoc() {
           console.log("[OCR] 裁剪:", cropInfo);
         }
 
-        // 2. 再预处理（如果开启）
+        // 2. 对比度增强（如果开启）——在预处理前增强，提升检测对偏淡数字的召回
+        if (contrastEnhance) {
+          setProgressMsg("正在增强对比度...");
+          const r = await enhanceContrast(workingDataURL);
+          workingDataURL = r.dataURL;
+          cropInfo = `${cropInfo} + ${r.info}`;
+        } else {
+          console.log("[OCR] 跳过对比度增强");
+        }
+
+        // 3. 再预处理（如果开启）
         setProgressMsg("正在预处理图片...");
         let processedDataURL = workingDataURL;
         let info = cropInfo;
@@ -567,7 +651,7 @@ export default function OcrPoc() {
         setStage("error");
       }
     },
-    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL, groupRows, mergeFactor],
+    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL, groupRows, mergeFactor, contrastEnhance],
   );
 
   /** 处理图片文件：校验 → 显示 → 识别 */
@@ -726,6 +810,15 @@ export default function OcrPoc() {
                   className="h-3 w-3 cursor-pointer"
                 />
                 启用预处理（放大+灰度）
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={contrastEnhance}
+                  onChange={(e) => setContrastEnhance(e.target.checked)}
+                  className="h-3 w-3 cursor-pointer"
+                />
+                对比度增强
               </label>
               <input
                 ref={fileInputRef}
