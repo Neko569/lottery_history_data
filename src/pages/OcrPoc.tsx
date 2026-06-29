@@ -118,6 +118,105 @@ function fileToDataURL(file: File): Promise<string> {
   });
 }
 
+/** dataURL 转 Image */
+function dataURLToImage(dataURL: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("图片解析失败"));
+    img.src = dataURL;
+  });
+}
+
+/**
+ * 图片预处理（使用 OpenCV.js），提升 OCR 识别率：
+ * 1. 短边放大到至少 720px（小图识别率差）
+ * 2. 转灰度
+ * 3. CLAHE 自适应直方图均衡化（增强对比度，应对光照不均）
+ * 4. 高斯模糊去噪
+ * 5. 自适应阈值二值化（比全局阈值更适应阴影/光照变化）
+ *
+ * 失败时回退返回原图 dataURL，不阻断流程。
+ */
+async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info: string }> {
+  const cv = (window as unknown as { cv?: any }).cv;
+  if (!cv || !cv.Mat) {
+    console.warn("[OCR] OpenCV 不可用，跳过预处理");
+    return { dataURL, info: "未预处理（OpenCV 不可用）" };
+  }
+  const t0 = performance.now();
+  let src: any, gray: any, clahe: any, blur: any, dst: any, small: any;
+  try {
+    const img = await dataURLToImage(dataURL);
+
+    // 用 canvas 读入原图到 Mat
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d context 不可用");
+    ctx.drawImage(img, 0, 0);
+    src = cv.imread(canvas);
+    console.log(`[OCR] 原图尺寸: ${src.cols}x${src.rows}, 通道: ${src.channels()}`);
+
+    // 短边放大到至少 720px
+    const minSide = Math.min(src.cols, src.rows);
+    let working = src;
+    if (minSide < 720) {
+      const scale = 720 / minSide;
+      small = new cv.Mat();
+      cv.resize(src, small, new cv.Size(0, 0), scale, scale, cv.INTER_CUBIC);
+      console.log(`[OCR] 放大: ${src.cols}x${src.rows} -> ${small.cols}x${small.rows} (x${scale.toFixed(2)})`);
+      working = small;
+    }
+
+    // 转灰度
+    gray = new cv.Mat();
+    cv.cvtColor(working, gray, cv.COLOR_RGBA2GRAY);
+
+    // CLAHE 对比度增强（clipLimit=2.0, tile=8x8）
+    clahe = new cv.Mat();
+    const claheFilter = new cv.CLAHE(2.0, new cv.Size(8, 8));
+    claheFilter.apply(gray, clahe);
+    claheFilter.delete();
+
+    // 高斯模糊去噪
+    blur = new cv.Mat();
+    cv.GaussianBlur(clahe, blur, new cv.Size(3, 3), 0);
+
+    // 自适应阈值二值化（高斯加权，C=5，blockSize=31）
+    dst = new cv.Mat();
+    cv.adaptiveThreshold(
+      blur,
+      dst,
+      255,
+      cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv.THRESH_BINARY,
+      31,
+      5,
+    );
+
+    // 输出到 canvas → dataURL
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = dst.cols;
+    outCanvas.height = dst.rows;
+    cv.imshow(outCanvas, dst);
+    const outDataURL = outCanvas.toDataURL("image/png");
+    const elapsed = performance.now() - t0;
+    const info = `${src.cols}x${src.rows}→${dst.cols}x${dst.rows} 灰度+CLAHE+模糊+二值化 (${elapsed.toFixed(0)}ms)`;
+    console.log(`[OCR] 预处理完成: ${info}`);
+    return { dataURL: outDataURL, info };
+  } catch (e) {
+    console.warn("[OCR] 预处理失败，回退原图:", e);
+    return { dataURL, info: `预处理失败: ${e instanceof Error ? e.message : String(e)}` };
+  } finally {
+    // 释放 Mat 内存（OpenCV.js 用 WASM 堆，需手动释放）
+    [src, gray, clahe, blur, dst, small].forEach((m) => {
+      try { m?.delete?.(); } catch { /* ignore */ }
+    });
+  }
+}
+
 /**
  * PaddleOCR POC 页面（CDN 加载方案）
  *
@@ -138,6 +237,7 @@ export default function OcrPoc() {
   const [totalText, setTotalText] = useState("");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [preprocessInfo, setPreprocessInfo] = useState("");
 
   const paddleRef = useRef<{ init: (opts: unknown) => Promise<void>; ocr: (dataURL: string) => Promise<OcrOutput> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,23 +247,29 @@ export default function OcrPoc() {
   const ensureOcr = useCallback(async () => {
     if (paddleRef.current) return paddleRef.current;
     setStage("loading-model");
+    console.log("[OCR] ===== 初始化 OCR 引擎 =====");
     setProgressMsg("正在加载 onnxruntime-web...");
     await loadScript(CDN.ort);
+    console.log("[OCR] onnxruntime-web 已加载");
 
     setProgressMsg("正在加载 opencv.js（约 8MB，请稍候）...");
     await loadScript(CDN.opencv);
     await waitForOpenCV();
+    console.log("[OCR] opencv.js 已就绪");
 
     setProgressMsg("正在加载 esearch-ocr...");
     // esearch-ocr 是 ESM 模块，动态 import
     const Paddle = await import(/* @vite-ignore */ CDN.esearchOcr);
     const ort = (window as unknown as { ort: unknown }).ort;
     const cv = (window as unknown as { cv: unknown }).cv;
+    console.log("[OCR] esearch-ocr 模块已加载");
 
     setProgressMsg("正在加载 OCR 模型（首次约 5MB）...");
     const assetsPath = CDN.assetsPath;
     const dicRes = await fetch(assetsPath + "ppocr_keys_v1.txt");
     const dic = await dicRes.text();
+    console.log("[OCR] 字典加载完成，长度:", dic.length);
+    const initStart = performance.now();
     await Paddle.init({
       detPath: assetsPath + "ppocr_det.onnx",
       recPath: assetsPath + "ppocr_rec.onnx",
@@ -172,11 +278,13 @@ export default function OcrPoc() {
       node: false,
       cv,
     });
+    console.log(`[OCR] 模型初始化完成，耗时 ${(performance.now() - initStart).toFixed(0)}ms`);
 
     paddleRef.current = Paddle as typeof paddleRef.current;
     setLoaded(true);
     setStage("ready");
     setProgressMsg("");
+    console.log("[OCR] ===== 引擎就绪 =====");
     return paddleRef.current;
   }, []);
 
@@ -193,17 +301,28 @@ export default function OcrPoc() {
       setItems([]);
       setTotalText("");
       setElapsedMs(0);
+      setPreprocessInfo("");
 
       try {
         const Paddle = await ensureOcr();
         setStage("recognizing");
         setProgressMsg("正在识别图片...");
-        const dataURL = await fileToDataURL(file);
+        const rawDataURL = await fileToDataURL(file);
+        console.log("[OCR] ===== 开始识别 =====");
+        console.log("[OCR] 文件:", file.name, `${(file.size / 1024).toFixed(1)}KB`, file.type);
+
+        setProgressMsg("正在预处理图片...");
+        const { dataURL: processedDataURL, info } = await preprocessImage(rawDataURL);
+        setPreprocessInfo(info);
+
+        setProgressMsg("正在识别图片...");
         const start = performance.now();
         // 主线程推理会短暂阻塞，先让浏览器渲染 loading
         await new Promise((r) => setTimeout(r, 0));
-        const result = (await Paddle.ocr(dataURL)) as OcrOutput;
+        const result = (await Paddle.ocr(processedDataURL)) as OcrOutput;
         const elapsed = performance.now() - start;
+        console.log("[OCR] 识别耗时:", `${elapsed.toFixed(0)}ms`);
+        console.log("[OCR] 原始返回结果:", result);
 
         // 防御性解析结果结构
         const blocks: OcrBlock[] = Array.isArray(result?.blocks) ? result.blocks : [];
@@ -214,13 +333,18 @@ export default function OcrPoc() {
           }))
           .filter((it) => it.text.length > 0);
 
+        console.log("[OCR] 识别行数:", recognized.length);
+        console.log("[OCR] 识别文本:");
+        recognized.forEach((it, i) => console.log(`  [${i}] score=${it.score.toFixed(3)} text="${it.text}"`));
+
         setItems(recognized);
         setTotalText(result?.text ?? recognized.map((r) => r.text).join("\n"));
         setElapsedMs(elapsed);
         setStage("done");
         setProgressMsg("");
+        console.log("[OCR] ===== 识别完成 =====");
       } catch (e) {
-        console.error(e);
+        console.error("[OCR] 识别异常:", e);
         setErrorMsg(e instanceof Error ? e.message : String(e));
         setStage("error");
       }
@@ -370,7 +494,7 @@ export default function OcrPoc() {
             )}
 
             {stage === "done" && (
-              <div className="mb-3 flex items-center gap-2 rounded-lg bg-ink-900/40 px-3 py-2 text-xs">
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-ink-900/40 px-3 py-2 text-xs">
                 <Clock className="h-3 w-3 text-indigo" />
                 <span className="text-zinc-500 dark:text-zinc-400">耗时</span>
                 <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
@@ -380,6 +504,14 @@ export default function OcrPoc() {
                 <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
                   {items.length}
                 </span>
+                {preprocessInfo && (
+                  <>
+                    <span className="ml-2 text-zinc-500 dark:text-zinc-400">· 预处理</span>
+                    <span className="font-mono text-[10px] text-zinc-600 dark:text-zinc-400">
+                      {preprocessInfo}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
