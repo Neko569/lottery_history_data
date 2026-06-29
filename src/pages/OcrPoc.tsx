@@ -56,8 +56,8 @@ interface OcrOutput {
   [key: string]: unknown;
 }
 
-/** 动态加载单个 script 标签（去重，已加载则跳过） */
-function loadScriptSingle(src: string): Promise<void> {
+/** 动态加载单个 script 标签（去重，已加载则跳过；带超时，避免长时间卡住） */
+function loadScriptSingle(src: string, timeoutMs = 60000): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
     if (existing) {
@@ -70,12 +70,102 @@ function loadScriptSingle(src: string): Promise<void> {
     script.src = src;
     script.async = true;
     script.crossOrigin = "anonymous";
+    // 超时定时器：CDN 慢/断网时快速失败，避免 UI 一直卡在"加载中"
+    const timer = setTimeout(() => {
+      script.onload = null;
+      script.onerror = null;
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error(`脚本加载超时（${timeoutMs / 1000}s）: ${src}`));
+    }, timeoutMs);
     script.onload = () => {
+      clearTimeout(timer);
       script.setAttribute("data-loaded", "true");
       resolve();
     };
-    script.onerror = () => reject(new Error(`脚本加载失败: ${src}`));
+    script.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error(`脚本加载失败: ${src}`));
+    };
     document.head.appendChild(script);
+  });
+}
+
+/** 带超时的 fetch，避免模型/字典下载长时间卡住 */
+async function fetchWithTimeout(url: string, timeoutMs = 60000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: ctrl.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error(`请求超时（${timeoutMs / 1000}s）: ${url}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 把识别行按 Y 坐标聚合成"行"（彩票号都是一行一组）。
+ * PP-OCR 检测有时会把一行号码拆成多个 box，导致看起来像"按列识别"。
+ * 这里按 box 顶部 Y 坐标分组：Y 差小于阈值（行高的一半）视为同一行，
+ * 行内按 X 排序后拼接文本。
+ */
+interface OcrRow {
+  text: string;
+  mean: number;
+  lineCount: number;
+}
+
+function groupLinesIntoRows(lines: OcrLine[]): OcrRow[] {
+  const items = lines
+    .filter((l) => l.text && l.box && l.box.length >= 4)
+    .map((l) => {
+      const ys = l.box!.map((p) => p[1]);
+      const xs = l.box!.map((p) => p[0]);
+      const topY = Math.min(...ys);
+      const bottomY = Math.max(...ys);
+      const leftX = Math.min(...xs);
+      return { line: l, topY, height: Math.max(1, bottomY - topY), leftX };
+    });
+  if (items.length === 0) return [];
+
+  // 按 Y 排序
+  items.sort((a, b) => a.topY - b.topY);
+
+  // 聚合：相邻行 Y 差 < 当前平均行高的 0.6 倍视为同一行
+  const rows: typeof items[] = [];
+  let currentRow = [items[0]];
+  let currentAvgHeight = items[0].height;
+
+  for (let i = 1; i < items.length; i++) {
+    const item = items[i];
+    const lastInRow = currentRow[currentRow.length - 1];
+    const threshold = Math.max(currentAvgHeight, item.height) * 0.6;
+    if (item.topY - lastInRow.topY <= threshold) {
+      currentRow.push(item);
+      currentAvgHeight =
+        (currentAvgHeight * (currentRow.length - 1) + item.height) / currentRow.length;
+    } else {
+      rows.push(currentRow);
+      currentRow = [item];
+      currentAvgHeight = item.height;
+    }
+  }
+  rows.push(currentRow);
+
+  // 行内按 X 排序后拼接文本
+  return rows.map((row) => {
+    row.sort((a, b) => a.leftX - b.leftX);
+    const text = row
+      .map((r) => (r.line.text || "").trim())
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const means = row.map((r) => r.line.mean ?? 0);
+    const mean = means.reduce((s, v) => s + v, 0) / means.length;
+    return { text, mean, lineCount: row.length };
   });
 }
 
@@ -231,6 +321,8 @@ export default function OcrPoc() {
   const [preprocessInfo, setPreprocessInfo] = useState("");
   /** 是否启用预处理（默认关闭，彩票原图质量通常足够，预处理可能反而破坏） */
   const [preprocessEnabled, setPreprocessEnabled] = useState(false);
+  /** 是否按行合并识别结果（默认开启，彩票号都是一行一组） */
+  const [groupRows, setGroupRows] = useState(true);
   /** 框选模式：开启后可在图片上拖拽框选区域，只识别框内部分 */
   const [cropMode, setCropMode] = useState(false);
   /** 当前框选区域（基于显示尺寸的像素坐标），null 表示未框选 */
@@ -270,7 +362,7 @@ export default function OcrPoc() {
 
     setProgressMsg("正在加载 OCR 模型（首次约 5MB）...");
     const assetsPath = CDN.assetsPath;
-    const dicRes = await fetch(assetsPath + "ppocr_keys_v1.txt");
+    const dicRes = await fetchWithTimeout(assetsPath + "ppocr_keys_v1.txt");
     const dic = await dicRes.text();
     console.log("[OCR] 字典加载完成，长度:", dic.length);
     const initStart = performance.now();
@@ -281,6 +373,8 @@ export default function OcrPoc() {
       ort,
       node: false,
       cv,
+      // PP-OCRv3 需显式指定 detShape=[960,960]，否则会用默认值导致检测异常
+      detShape: [960, 960],
     });
     console.log(`[OCR] 模型初始化完成，耗时 ${(performance.now() - initStart).toFixed(0)}ms`);
 
@@ -421,14 +515,26 @@ export default function OcrPoc() {
         // 从 result.src 取原始识别行（esearch-ocr 实际返回结构）
         // 每项含 text / mean（置信度）/ box
         const lines: OcrLine[] = Array.isArray(result?.src) ? result.src : [];
-        const recognized: RecognizedItem[] = lines
-          .map((b) => ({
-            text: (b.text ?? "").trim(),
-            score: typeof b.mean === "number" ? b.mean : 0,
-          }))
-          .filter((it) => it.text.length > 0);
+        console.log("[OCR] 原始识别行数:", lines.length);
 
-        console.log("[OCR] 识别行数:", recognized.length);
+        // 按行合并：PP-OCR 有时会把一行号码拆成多个 box（看起来像按列识别）
+        // 彩票号都是一行一组，按 box 的 Y 坐标聚合后行内按 X 排序拼接
+        let recognized: RecognizedItem[];
+        if (groupRows) {
+          const rows = groupLinesIntoRows(lines);
+          recognized = rows
+            .map((r) => ({ text: r.text, score: r.mean }))
+            .filter((it) => it.text.length > 0);
+          console.log(`[OCR] 按行合并后行数: ${recognized.length}（原始 ${lines.length}）`);
+        } else {
+          recognized = lines
+            .map((b) => ({
+              text: (b.text ?? "").trim(),
+              score: typeof b.mean === "number" ? b.mean : 0,
+            }))
+            .filter((it) => it.text.length > 0);
+          console.log(`[OCR] 识别行数: ${recognized.length}`);
+        }
         console.log("[OCR] 识别文本:");
         recognized.forEach((it, i) => console.log(`  [${i}] score=${it.score.toFixed(3)} text="${it.text}"`));
 
@@ -444,7 +550,7 @@ export default function OcrPoc() {
         setStage("error");
       }
     },
-    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL],
+    [ensureOcr, preprocessEnabled, cropMode, cropRect, cropDataURL, groupRows],
   );
 
   /** 处理图片文件：校验 → 显示 → 识别 */
@@ -575,6 +681,15 @@ export default function OcrPoc() {
               <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
                 <input
                   type="checkbox"
+                  checked={groupRows}
+                  onChange={(e) => setGroupRows(e.target.checked)}
+                  className="h-3 w-3 cursor-pointer"
+                />
+                按行合并
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                <input
+                  type="checkbox"
                   checked={preprocessEnabled}
                   onChange={(e) => setPreprocessEnabled(e.target.checked)}
                   className="h-3 w-3 cursor-pointer"
@@ -682,7 +797,18 @@ export default function OcrPoc() {
 
             {stage === "error" && errorMsg && (
               <div className="mb-3 rounded-lg border border-crimson/40 bg-crimson/10 px-3 py-2 text-xs text-crimson-400">
-                {errorMsg}
+                <div>{errorMsg}</div>
+                {/* 加载类失败：允许重试（CDN 偶发慢/断） */}
+                {!loaded && currentFile && (
+                  <button
+                    type="button"
+                    onClick={reRecognize}
+                    className="mt-2 inline-flex items-center gap-1 rounded bg-crimson/20 px-2 py-1 text-[11px] text-crimson-400 hover:bg-crimson/30"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    重试加载
+                  </button>
+                )}
               </div>
             )}
 
@@ -711,7 +837,7 @@ export default function OcrPoc() {
             {items.length > 0 ? (
               <div className="space-y-2">
                 <div className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-                  原始识别行（共 {items.length} 行）
+                  {groupRows ? "按行合并结果" : "原始识别行"}（共 {items.length} 行）
                 </div>
                 <div className="max-h-[280px] space-y-1 overflow-y-auto">
                   {items.map((it, i) => (
