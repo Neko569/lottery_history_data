@@ -40,16 +40,19 @@ interface RecognizedItem {
   score: number;
 }
 
-/** eSearch-OCR 的返回结构（宽松类型，防御性处理） */
-interface OcrBlock {
+/** eSearch-OCR 的返回结构（基于实际返回值，宽松类型） */
+interface OcrLine {
   text?: string;
-  score?: number;
+  mean?: number; // 置信度（esearch-ocr 用 mean 而非 score）
   box?: number[][];
 }
 interface OcrOutput {
+  // src 是最完整的原始行数组，每项含 text/mean/box
+  src?: OcrLine[];
+  // 段落级聚合（text/mean/box）
+  parragraphs?: OcrLine[]; // 注意：esearch-ocr 拼写为 parragraphs（双 r）
+  columns?: { src?: OcrLine[] }[];
   text?: string;
-  blocks?: OcrBlock[];
-  // 兼容其他可能的结构
   [key: string]: unknown;
 }
 
@@ -129,12 +132,13 @@ function dataURLToImage(dataURL: string): Promise<HTMLImageElement> {
 }
 
 /**
- * 图片预处理（使用 OpenCV.js），提升 OCR 识别率：
- * 1. 短边放大到至少 720px（小图识别率差）
+ * 图片预处理（使用 OpenCV.js），温和策略：
+ * 1. 短边放大到至少 960px（彩票号码区域需要足够分辨率）
  * 2. 转灰度
- * 3. CLAHE 自适应直方图均衡化（增强对比度，应对光照不均）
- * 4. 高斯模糊去噪
- * 5. 自适应阈值二值化（比全局阈值更适应阴影/光照变化）
+ * 3. 轻量高斯模糊去噪（1x1，几乎不影响细节）
+ *
+ * 注意：不做二值化/CLAHE，实测会破坏彩票号码识别（彩色背景 + 印刷体数字
+ * 场景下，二值化容易把号码区域和背景混在一起）。
  *
  * 失败时回退返回原图 dataURL，不阻断流程。
  */
@@ -145,7 +149,7 @@ async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info
     return { dataURL, info: "未预处理（OpenCV 不可用）" };
   }
   const t0 = performance.now();
-  let src: any, gray: any, clahe: any, blur: any, dst: any, small: any;
+  let src: any, gray: any, blur: any, dst: any, small: any;
   try {
     const img = await dataURLToImage(dataURL);
 
@@ -159,11 +163,11 @@ async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info
     src = cv.imread(canvas);
     console.log(`[OCR] 原图尺寸: ${src.cols}x${src.rows}, 通道: ${src.channels()}`);
 
-    // 短边放大到至少 720px
+    // 短边放大到至少 960px（彩票号码区域需要足够分辨率）
     const minSide = Math.min(src.cols, src.rows);
     let working = src;
-    if (minSide < 720) {
-      const scale = 720 / minSide;
+    if (minSide < 960) {
+      const scale = 960 / minSide;
       small = new cv.Mat();
       cv.resize(src, small, new cv.Size(0, 0), scale, scale, cv.INTER_CUBIC);
       console.log(`[OCR] 放大: ${src.cols}x${src.rows} -> ${small.cols}x${small.rows} (x${scale.toFixed(2)})`);
@@ -174,27 +178,12 @@ async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info
     gray = new cv.Mat();
     cv.cvtColor(working, gray, cv.COLOR_RGBA2GRAY);
 
-    // CLAHE 对比度增强（clipLimit=2.0, tile=8x8）
-    clahe = new cv.Mat();
-    const claheFilter = new cv.CLAHE(2.0, new cv.Size(8, 8));
-    claheFilter.apply(gray, clahe);
-    claheFilter.delete();
-
-    // 高斯模糊去噪
+    // 轻量高斯模糊去噪（1x1，几乎不影响细节）
     blur = new cv.Mat();
-    cv.GaussianBlur(clahe, blur, new cv.Size(3, 3), 0);
+    cv.GaussianBlur(gray, blur, new cv.Size(1, 1), 0);
 
-    // 自适应阈值二值化（高斯加权，C=5，blockSize=31）
-    dst = new cv.Mat();
-    cv.adaptiveThreshold(
-      blur,
-      dst,
-      255,
-      cv.ADAPTIVE_THRESH_GAUSSIAN_C,
-      cv.THRESH_BINARY,
-      31,
-      5,
-    );
+    // 直接用 blur 作为输出（灰度 + 轻微去噪）
+    dst = blur;
 
     // 输出到 canvas → dataURL
     const outCanvas = document.createElement("canvas");
@@ -203,7 +192,7 @@ async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info
     cv.imshow(outCanvas, dst);
     const outDataURL = outCanvas.toDataURL("image/png");
     const elapsed = performance.now() - t0;
-    const info = `${src.cols}x${src.rows}→${dst.cols}x${dst.rows} 灰度+CLAHE+模糊+二值化 (${elapsed.toFixed(0)}ms)`;
+    const info = `${src.cols}x${src.rows}→${dst.cols}x${dst.rows} 灰度+轻去噪 (${elapsed.toFixed(0)}ms)`;
     console.log(`[OCR] 预处理完成: ${info}`);
     return { dataURL: outDataURL, info };
   } catch (e) {
@@ -211,9 +200,11 @@ async function preprocessImage(dataURL: string): Promise<{ dataURL: string; info
     return { dataURL, info: `预处理失败: ${e instanceof Error ? e.message : String(e)}` };
   } finally {
     // 释放 Mat 内存（OpenCV.js 用 WASM 堆，需手动释放）
-    [src, gray, clahe, blur, dst, small].forEach((m) => {
+    // 注意：dst = blur 是同一引用，只 delete 一次
+    [src, gray, small].forEach((m) => {
       try { m?.delete?.(); } catch { /* ignore */ }
     });
+    try { blur?.delete?.(); } catch { /* ignore */ }
   }
 }
 
@@ -238,6 +229,8 @@ export default function OcrPoc() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [preprocessInfo, setPreprocessInfo] = useState("");
+  /** 是否启用预处理（默认关闭，彩票原图质量通常足够，预处理可能反而破坏） */
+  const [preprocessEnabled, setPreprocessEnabled] = useState(false);
 
   const paddleRef = useRef<{ init: (opts: unknown) => Promise<void>; ocr: (dataURL: string) => Promise<OcrOutput> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -312,7 +305,15 @@ export default function OcrPoc() {
         console.log("[OCR] 文件:", file.name, `${(file.size / 1024).toFixed(1)}KB`, file.type);
 
         setProgressMsg("正在预处理图片...");
-        const { dataURL: processedDataURL, info } = await preprocessImage(rawDataURL);
+        let processedDataURL = rawDataURL;
+        let info = "未预处理（原图识别）";
+        if (preprocessEnabled) {
+          const r = await preprocessImage(rawDataURL);
+          processedDataURL = r.dataURL;
+          info = r.info;
+        } else {
+          console.log("[OCR] 跳过预处理，使用原图识别");
+        }
         setPreprocessInfo(info);
 
         setProgressMsg("正在识别图片...");
@@ -324,12 +325,13 @@ export default function OcrPoc() {
         console.log("[OCR] 识别耗时:", `${elapsed.toFixed(0)}ms`);
         console.log("[OCR] 原始返回结果:", result);
 
-        // 防御性解析结果结构
-        const blocks: OcrBlock[] = Array.isArray(result?.blocks) ? result.blocks : [];
-        const recognized: RecognizedItem[] = blocks
+        // 从 result.src 取原始识别行（esearch-ocr 实际返回结构）
+        // 每项含 text / mean（置信度）/ box
+        const lines: OcrLine[] = Array.isArray(result?.src) ? result.src : [];
+        const recognized: RecognizedItem[] = lines
           .map((b) => ({
             text: (b.text ?? "").trim(),
-            score: typeof b.score === "number" ? b.score : 0,
+            score: typeof b.mean === "number" ? b.mean : 0,
           }))
           .filter((it) => it.text.length > 0);
 
@@ -338,7 +340,7 @@ export default function OcrPoc() {
         recognized.forEach((it, i) => console.log(`  [${i}] score=${it.score.toFixed(3)} text="${it.text}"`));
 
         setItems(recognized);
-        setTotalText(result?.text ?? recognized.map((r) => r.text).join("\n"));
+        setTotalText(recognized.map((r) => r.text).join("\n"));
         setElapsedMs(elapsed);
         setStage("done");
         setProgressMsg("");
@@ -349,7 +351,7 @@ export default function OcrPoc() {
         setStage("error");
       }
     },
-    [ensureOcr],
+    [ensureOcr, preprocessEnabled],
   );
 
   useEffect(() => {
@@ -420,6 +422,15 @@ export default function OcrPoc() {
                 <Upload className="h-3.5 w-3.5" />
                 上传图片
               </button>
+              <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={preprocessEnabled}
+                  onChange={(e) => setPreprocessEnabled(e.target.checked)}
+                  className="h-3 w-3 cursor-pointer"
+                />
+                启用预处理（放大+灰度）
+              </label>
               <input
                 ref={fileInputRef}
                 type="file"
