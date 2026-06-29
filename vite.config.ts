@@ -17,6 +17,19 @@ export default defineConfig({
         ],
       },
     }),
-    tsconfigPaths()
+    tsconfigPaths(),
+    {
+      name: 'exclude-ort-wasm-assets',
+      // ONNX Runtime Web 的 .wasm 文件会被作为静态资源打包进 dist，
+      // 但运行时已通过 wasmPaths 指向 jsDelivr CDN，本地副本无需部署。
+      // Cloudflare Pages 单文件限制 25 MiB，需移除这些大体积 wasm 产物。
+      generateBundle(_, bundle) {
+        for (const fileName of Object.keys(bundle)) {
+          if (/^assets\/ort-.*\.wasm(\.map)?$/.test(fileName)) {
+            delete bundle[fileName];
+          }
+        }
+      },
+    },
   ],
 })
