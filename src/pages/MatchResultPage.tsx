@@ -850,9 +850,9 @@ export default function MatchResultPage() {
                                 setImportText(e.target.value);
                                 if (importErrors.length > 0) setImportErrors([]);
                               }}
-                              placeholder={`每行一注，支持以下格式：\n04 06 07 33 34 + 05 08\n04,06,07,33,34,05,08\n\n个位号码可不补零（如 4 6 7 33 34 + 5 8）`}
+                              placeholder={`每行一注，支持以下格式：\n1 2 3 4 5 + 6 7\n1,2,3,4,5,6,7`}
                               rows={6}
-                              className="w-full resize-y rounded-lg border border-ink-600 bg-ink-950/60 px-3 py-2 font-mono text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo"
+                              className="w-full resize-y rounded-lg border border-ink-600 bg-ink-950/60 px-3 py-2 font-mono text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo dark:text-zinc-100 dark:placeholder:text-zinc-500"
                             />
 
                             <div className="flex flex-wrap items-center gap-2">
