@@ -6,15 +6,24 @@ import {
   AlertCircle,
   CheckCircle2,
   ScanText,
-  Cpu,
   Clock,
   Image as ImageIcon,
 } from "lucide-react";
-import type { PaddleOCR as PaddleOCRType, OcrResult } from "@paddleocr/paddleocr-js";
 import { cn } from "@/lib/utils";
 
-/** OCR 实例类型：create() 返回主线程 PaddleOCR 或 Worker 模式代理的联合类型 */
-type OcrInstance = Awaited<ReturnType<typeof PaddleOCRType.create>>;
+/**
+ * CDN 资源路径（全部运行时从 jsDelivr 加载，不进 dist 打包）
+ * - onnxruntime-web: ORT 推理引擎
+ * - opencv.js: 图像预处理
+ * - esearch-ocr: PaddleOCR 浏览器封装（基于 PP-OCRv3 模型）
+ * - 模型文件: ppocr_det.onnx / ppocr_rec.onnx / ppocr_keys_v1.txt
+ */
+const CDN = {
+  ort: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js",
+  opencv: "https://docs.opencv.org/4.8.0/opencv.js",
+  esearchOcr: "https://cdn.jsdelivr.net/npm/esearch-ocr@5.1.5/dist/esearch-ocr.js",
+  assetsPath: "https://cdn.jsdelivr.net/npm/paddleocr-browser@1.0.3/dist/",
+};
 
 /** OCR 识别进度阶段 */
 type Stage = "idle" | "loading-model" | "ready" | "recognizing" | "done" | "error";
@@ -25,10 +34,76 @@ interface RecognizedItem {
   score: number;
 }
 
+/** eSearch-OCR 的返回结构（宽松类型，防御性处理） */
+interface OcrBlock {
+  text?: string;
+  score?: number;
+  box?: number[][];
+}
+interface OcrOutput {
+  text?: string;
+  blocks?: OcrBlock[];
+  // 兼容其他可能的结构
+  [key: string]: unknown;
+}
+
+/** 动态加载 script 标签（去重，已加载则跳过） */
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.getAttribute("data-loaded") === "true") return resolve();
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error(`脚本加载失败: ${src}`)));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      script.setAttribute("data-loaded", "true");
+      resolve();
+    };
+    script.onerror = () => reject(new Error(`脚本加载失败: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+/** 等待 OpenCV.js 运行时就绪（轮询全局 cv 对象） */
+function waitForOpenCV(timeout = 60000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      const cv = (window as unknown as { cv?: { Mat?: unknown } }).cv;
+      if (cv && cv.Mat) return resolve();
+      if (Date.now() - start > timeout) return reject(new Error("OpenCV.js 初始化超时"));
+      setTimeout(check, 100);
+    };
+    check();
+  });
+}
+
+/** File 转 dataURL（eSearch-OCR 的 ocr() 接收 dataURL） */
+function fileToDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * PaddleOCR POC 页面
- * 用于验证浏览器端 OCR 识别彩票号码图片的可行性
- * 不接入业务逻辑，仅展示：上传图片 → 识别 → 原始结果
+ * PaddleOCR POC 页面（CDN 加载方案）
+ *
+ * 所有 OCR 依赖（onnxruntime-web、opencv.js、esearch-ocr、模型文件）均运行时从
+ * jsDelivr CDN 加载，不打包进 dist，彻底避免：
+ * - Cloudflare Pages 25MB 单文件限制
+ * - worker entry chunk 加载失败导致通信错误
+ * - 主 bundle 体积膨胀
+ *
+ * 模型为 PP-OCRv3 级别（ppocr_det/ppocr_rec），对彩票号码（印刷体数字）足够。
  */
 export default function OcrPoc() {
   const [stage, setStage] = useState<Stage>("idle");
@@ -36,42 +111,49 @@ export default function OcrPoc() {
   const [errorMsg, setErrorMsg] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [items, setItems] = useState<RecognizedItem[]>([]);
-  const [metrics, setMetrics] = useState<OcrResult["metrics"] | null>(null);
-  const [runtime, setRuntime] = useState<OcrResult["runtime"] | null>(null);
-  const [backend, setBackend] = useState("");
+  const [totalText, setTotalText] = useState("");
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
-  const ocrRef = useRef<OcrInstance | null>(null);
+  const paddleRef = useRef<{ init: (opts: unknown) => Promise<void>; ocr: (dataURL: string) => Promise<OcrOutput> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  /** 懒加载初始化 OCR 实例（首次识别时触发，避免页面打开就下载模型） */
-  const ensureOcr = useCallback(async (): Promise<OcrInstance> => {
-    if (ocrRef.current) return ocrRef.current;
+  /** 懒加载初始化 OCR（首次识别时触发，按需加载 CDN 资源） */
+  const ensureOcr = useCallback(async () => {
+    if (paddleRef.current) return paddleRef.current;
     setStage("loading-model");
-    setProgressMsg("正在加载 PaddleOCR 模型（首次约 5-10MB，请稍候）...");
-    // 动态 import，避免 OCR SDK 进入主 bundle
-    const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
-    // 不使用 worker 模式：worker entry chunk 达 10MB+，
-    // 在 Cloudflare Pages 等静态托管下加载不稳定（易超时/被扩展拦截），
-    // 主线程单线程 WASM 推理仅短暂阻塞 ~500-1500ms，可接受。
-    const ocr = await PaddleOCR.create({
-      lang: "ch",
-      ocrVersion: "PP-OCRv5",
-      worker: false,
-      ortOptions: {
-        // 单线程 WASM + SIMD，无需 COOP/COEP，GitHub Pages 直接可用
-        backend: "wasm",
-        wasmPaths: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/",
-        numThreads: 1,
-        simd: true,
-      },
+    setProgressMsg("正在加载 onnxruntime-web...");
+    await loadScript(CDN.ort);
+
+    setProgressMsg("正在加载 opencv.js（约 8MB，请稍候）...");
+    await loadScript(CDN.opencv);
+    await waitForOpenCV();
+
+    setProgressMsg("正在加载 esearch-ocr...");
+    // esearch-ocr 是 ESM 模块，动态 import
+    const Paddle = await import(/* @vite-ignore */ CDN.esearchOcr);
+    const ort = (window as unknown as { ort: unknown }).ort;
+    const cv = (window as unknown as { cv: unknown }).cv;
+
+    setProgressMsg("正在加载 OCR 模型（首次约 5MB）...");
+    const assetsPath = CDN.assetsPath;
+    const dicRes = await fetch(assetsPath + "ppocr_keys_v1.txt");
+    const dic = await dicRes.text();
+    await Paddle.init({
+      detPath: assetsPath + "ppocr_det.onnx",
+      recPath: assetsPath + "ppocr_rec.onnx",
+      dic,
+      ort,
+      node: false,
+      cv,
     });
-    ocrRef.current = ocr;
-    const summary = ocr.getInitializationSummary?.();
-    setBackend(summary?.backend || "wasm");
+
+    paddleRef.current = Paddle as typeof paddleRef.current;
+    setLoaded(true);
     setStage("ready");
     setProgressMsg("");
-    return ocr;
+    return paddleRef.current;
   }, []);
 
   /** 处理图片文件：初始化 OCR → 识别 → 展示结果 */
@@ -85,30 +167,32 @@ export default function OcrPoc() {
       setErrorMsg("");
       setImageUrl(URL.createObjectURL(file));
       setItems([]);
-      setMetrics(null);
-      setRuntime(null);
+      setTotalText("");
+      setElapsedMs(0);
 
       try {
-        const ocr = await ensureOcr();
+        const Paddle = await ensureOcr();
         setStage("recognizing");
         setProgressMsg("正在识别图片...");
-        // 主线程模式下 OCR 会阻塞 UI，先让浏览器渲染 loading 状态
+        const dataURL = await fileToDataURL(file);
+        const start = performance.now();
+        // 主线程推理会短暂阻塞，先让浏览器渲染 loading
         await new Promise((r) => setTimeout(r, 0));
-        const results = await ocr.predict(file);
-        const result = results[0];
-        if (!result) {
-          setErrorMsg("未返回识别结果");
-          setStage("error");
-          return;
-        }
-        setItems(
-          result.items.map((it) => ({
-            text: it.text,
-            score: it.score,
-          })),
-        );
-        setMetrics(result.metrics);
-        setRuntime(result.runtime);
+        const result = (await Paddle.ocr(dataURL)) as OcrOutput;
+        const elapsed = performance.now() - start;
+
+        // 防御性解析结果结构
+        const blocks: OcrBlock[] = Array.isArray(result?.blocks) ? result.blocks : [];
+        const recognized: RecognizedItem[] = blocks
+          .map((b) => ({
+            text: (b.text ?? "").trim(),
+            score: typeof b.score === "number" ? b.score : 0,
+          }))
+          .filter((it) => it.text.length > 0);
+
+        setItems(recognized);
+        setTotalText(result?.text ?? recognized.map((r) => r.text).join("\n"));
+        setElapsedMs(elapsed);
         setStage("done");
         setProgressMsg("");
       } catch (e) {
@@ -122,14 +206,12 @@ export default function OcrPoc() {
 
   useEffect(() => {
     return () => {
-      // 组件卸载时释放模型与对象 URL
-      ocrRef.current?.dispose?.();
       if (imageUrl) URL.revokeObjectURL(imageUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** 从识别文本中提取候选号码（2位数字） */
+  /** 从识别文本中提取候选号码（1-2 位数字） */
   const candidateNumbers = items
     .flatMap((it) => it.text.match(/\d{1,2}/g) || [])
     .map((n) => n.padStart(2, "0"));
@@ -143,13 +225,13 @@ export default function OcrPoc() {
               OCR 识别 POC
             </h1>
             <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              PaddleOCR.js 端侧识别彩票号码可行性验证
+              PaddleOCR 端侧识别彩票号码可行性验证（CDN 加载）
             </p>
           </div>
-          {backend && (
-            <span className="flex items-center gap-1.5 rounded-full bg-indigo/10 px-3 py-1 text-xs text-indigo">
-              <Cpu className="h-3 w-3" />
-              后端: {backend}
+          {loaded && (
+            <span className="flex items-center gap-1.5 rounded-full bg-green/10 px-3 py-1 text-xs text-green">
+              <CheckCircle2 className="h-3 w-3" />
+              模型已就绪
             </span>
           )}
         </div>
@@ -163,8 +245,8 @@ export default function OcrPoc() {
             POC 说明
           </div>
           <p>
-            本页面用于验证 PaddleOCR.js 在浏览器端识别彩票号码图片的可行性。模型在首次识别时从 CDN
-            下载（约 5-10MB），推理完全在浏览器内进行，图片不会上传到任何服务器。
+            所有 OCR 依赖（onnxruntime-web、opencv.js、esearch-ocr、模型）均在首次识别时从
+            jsDelivr CDN 加载，不打包进站点。推理完全在浏览器内进行，图片不会上传到任何服务器。
           </p>
         </div>
 
@@ -263,36 +345,17 @@ export default function OcrPoc() {
               </div>
             )}
 
-            {metrics && (
-              <div className="mb-3 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-ink-900/40 px-2 py-2">
-                  <div className="flex items-center justify-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                    <Clock className="h-2.5 w-2.5" />
-                    总耗时
-                  </div>
-                  <div className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                    {metrics.totalMs.toFixed(0)}ms
-                  </div>
-                </div>
-                <div className="rounded-lg bg-ink-900/40 px-2 py-2">
-                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400">检测框</div>
-                  <div className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                    {metrics.detectedBoxes}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-ink-900/40 px-2 py-2">
-                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400">识别行</div>
-                  <div className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                    {metrics.recognizedCount}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {runtime && (
-              <div className="mb-3 rounded-lg bg-ink-950/40 px-3 py-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
-                backend={runtime.requestedBackend} · det={runtime.detProvider} · rec={runtime.recProvider}
-                · WebGPU={runtime.webgpuAvailable ? "可用" : "不可用"}
+            {stage === "done" && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg bg-ink-900/40 px-3 py-2 text-xs">
+                <Clock className="h-3 w-3 text-indigo" />
+                <span className="text-zinc-500 dark:text-zinc-400">耗时</span>
+                <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                  {elapsedMs.toFixed(0)}ms
+                </span>
+                <span className="ml-2 text-zinc-500 dark:text-zinc-400">· 识别行</span>
+                <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                  {items.length}
+                </span>
               </div>
             )}
 
@@ -308,18 +371,20 @@ export default function OcrPoc() {
                       className="flex items-center justify-between rounded-md bg-ink-900/40 px-2 py-1.5 text-xs"
                     >
                       <span className="font-mono text-zinc-900 dark:text-zinc-100">{it.text}</span>
-                      <span
-                        className={cn(
-                          "ml-2 rounded px-1.5 py-0.5 text-[10px]",
-                          it.score >= 0.9
-                            ? "bg-green/20 text-green"
-                            : it.score >= 0.7
-                              ? "bg-yellow-400/20 text-yellow-600 dark:text-yellow-400"
-                              : "bg-crimson/20 text-crimson",
-                        )}
-                      >
-                        {(it.score * 100).toFixed(0)}%
-                      </span>
+                      {it.score > 0 && (
+                        <span
+                          className={cn(
+                            "ml-2 rounded px-1.5 py-0.5 text-[10px]",
+                            it.score >= 0.9
+                              ? "bg-green/20 text-green"
+                              : it.score >= 0.7
+                                ? "bg-yellow-400/20 text-yellow-600 dark:text-yellow-400"
+                                : "bg-crimson/20 text-crimson",
+                          )}
+                        >
+                          {(it.score * 100).toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -345,6 +410,17 @@ export default function OcrPoc() {
                     )}
                   </div>
                 </div>
+
+                {totalText && (
+                  <div className="border-t border-ink-700/60 pt-2">
+                    <div className="mb-1.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                      完整文本
+                    </div>
+                    <pre className="max-h-[120px] overflow-auto whitespace-pre-wrap rounded-md bg-ink-900/40 p-2 font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
+                      {totalText}
+                    </pre>
+                  </div>
+                )}
               </div>
             ) : (
               stage !== "error" && (

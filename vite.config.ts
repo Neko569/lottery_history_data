@@ -18,24 +18,5 @@ export default defineConfig({
       },
     }),
     tsconfigPaths(),
-    {
-      name: 'exclude-ort-wasm-assets',
-      // ONNX Runtime Web 的 .wasm 文件会被作为静态资源打包进 dist，
-      // 但运行时已通过 wasmPaths 指向 jsDelivr CDN，本地副本无需部署。
-      // Cloudflare Pages 单文件限制 25 MiB，需移除这些大体积 wasm 产物。
-      // 同时移除 PaddleOCR 的 worker-entry chunk（11MB+）：
-      // SDK 源码静态引用 new URL("./assets/worker-entry-*.js") 导致 Vite 强制打包，
-      // 但 worker:false 模式下运行时不会 fetch，移除安全，且避免静态托管下大文件加载失败。
-      generateBundle(_, bundle) {
-        for (const fileName of Object.keys(bundle)) {
-          if (
-            /^assets\/ort-.*\.wasm(\.map)?$/.test(fileName) ||
-            /^assets\/worker-entry-.*\.js(\.map)?$/.test(fileName)
-          ) {
-            delete bundle[fileName];
-          }
-        }
-      },
-    },
   ],
 })
