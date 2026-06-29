@@ -20,7 +20,13 @@ import { cn } from "@/lib/utils";
  */
 const CDN = {
   ort: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js",
-  opencv: "https://docs.opencv.org/4.8.0/opencv.js",
+  // opencv.js：docs.opencv.org 在部分网络环境下加载不稳定/被墙，
+  // 优先用 jsDelivr 镜像（@tbmc/opencv-js 是 docs.opencv.org 文件的 npm 镜像），
+  // 失败时回退到官方 docs.opencv.org。
+  opencv: [
+    "https://cdn.jsdelivr.net/npm/@tbmc/opencv-js@4.9.0-release.3-custom1/dist/opencv.min.js",
+    "https://docs.opencv.org/4.8.0/opencv.js",
+  ],
   esearchOcr: "https://cdn.jsdelivr.net/npm/esearch-ocr@5.1.5/dist/esearch-ocr.js",
   assetsPath: "https://cdn.jsdelivr.net/npm/paddleocr-browser@1.0.3/dist/",
 };
@@ -47,8 +53,8 @@ interface OcrOutput {
   [key: string]: unknown;
 }
 
-/** 动态加载 script 标签（去重，已加载则跳过） */
-function loadScript(src: string): Promise<void> {
+/** 动态加载单个 script 标签（去重，已加载则跳过） */
+function loadScriptSingle(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
     if (existing) {
@@ -68,6 +74,24 @@ function loadScript(src: string): Promise<void> {
     script.onerror = () => reject(new Error(`脚本加载失败: ${src}`));
     document.head.appendChild(script);
   });
+}
+
+/** 动态加载 script，支持多 URL fallback（前者失败则尝试下一个） */
+async function loadScript(src: string | string[]): Promise<void> {
+  const urls = Array.isArray(src) ? src : [src];
+  let lastErr: unknown;
+  for (const url of urls) {
+    try {
+      await loadScriptSingle(url);
+      return;
+    } catch (e) {
+      lastErr = e;
+      // 移除失败的 script 标签，避免下次命中缓存
+      const failed = document.querySelector<HTMLScriptElement>(`script[src="${url}"]`);
+      if (failed && failed.getAttribute("data-loaded") !== "true") failed.remove();
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("所有 CDN 加载失败");
 }
 
 /** 等待 OpenCV.js 运行时就绪（轮询全局 cv 对象） */
