@@ -23,12 +23,12 @@
 
 ### P1 — ESLint 报错（构建卫生）
 
-- [ ] **1. MatchResultPage 未使用导入 `LotteryType`**
+- [x] **1. MatchResultPage 未使用导入 `LotteryType`**
   - 现状：`src/pages/MatchResultPage.tsx:4` `import type { LotteryType, ... }`，重构后 `LotteryType` 已无引用，ESLint `no-unused-vars` error。
   - 方案：从 import 中删除 `LotteryType`。
   - 影响文件：`src/pages/MatchResultPage.tsx`
 
-- [ ] **2. lotteryStore `fetchRemoteData` 中 `source` 解构未使用**
+- [x] **2. lotteryStore `fetchRemoteData` 中 `source` 解构未使用**
   - 现状：`const { data, source } = await fetchWithFallback(type)`，`source` 从未读取（仅 `data` 用于 set），ESLint `no-unused-vars` error。
   - 方案：改为 `const { data } = ...`。
   - 影响文件：`src/store/lotteryStore.ts`
@@ -74,3 +74,5 @@
 ## 进度记录
 
 （每完成一项追加一行：`- YYYY-MM-DD 完成项 N — commit <sha>`）
+- 2026-06-30 完成项 1 — 删除 MatchResultPage 未使用的 `LotteryType` 导入，消除 ESLint error
+- 2026-06-30 完成项 2 — lotteryStore `fetchRemoteData` 解构去掉未使用的 `source`，消除 ESLint error
