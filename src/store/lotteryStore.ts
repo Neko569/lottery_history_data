@@ -149,7 +149,7 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
       },
     }));
     try {
-      const { data, source } = await fetchWithFallback(type);
+      const { data } = await fetchWithFallback(type);
       // 远程数据默认按期号倒序，确保最新在前
       data.items = sortDesc(data.items);
       // 若已被新请求取代（如用户再次刷新或上传了文件），丢弃本次结果

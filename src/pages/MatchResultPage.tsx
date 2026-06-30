@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
-import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
+import type { RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, LOTTERY_TYPES, LOTTERIES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, type LotteryPackage } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
@@ -173,7 +173,7 @@ export default function MatchResultPage() {
   
   const rule = LOTTERY_RULES[type];
   /** 当前彩种奖级顺序（一等奖在前），用于排序与「随机到指定奖级」下拉 */
-  const prizeLevels = getPrizeLevels(type);
+  const prizeLevels = useMemo(() => getPrizeLevels(type), [type]);
   /** 生效的停止奖级：切换彩种时若原值不适用则回退到最低奖级 */
   const effectiveTargetPrizeLevel = prizeLevels.includes(targetPrizeLevel)
     ? targetPrizeLevel
@@ -185,6 +185,13 @@ export default function MatchResultPage() {
   const loading = state.loading;
   const error = state.error;
   const source = state.source;
+
+  // 深链接（直接访问 /match?type=xxx）无数据时自动拉取，与 TrendDetail 行为一致
+  useEffect(() => {
+    if (!data && !loading) {
+      fetchRemoteData(type);
+    }
+  }, [type, data, loading, fetchRemoteData]);
 
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
     return ticket.front.length >= rule.frontCount && ticket.back.length >= rule.backCount;
@@ -198,11 +205,11 @@ export default function MatchResultPage() {
     return data.items.slice(0, count);
   }, [data, selectedRange]);
 
-  const getPrizeLevel = (frontMatch: number, backMatch: number) => {
+  const getPrizeLevel = useCallback((frontMatch: number, backMatch: number) => {
     const tier = getPrizeTierByMatch(type, frontMatch, backMatch);
     if (!tier) return null;
     return { level: tier.level, ...PRIZE_COLORS[tier.level] };
-  };
+  }, [type, PRIZE_COLORS]);
 
   const calculateMatches = useCallback((ticket: LotteryTicket) => {
     const filteredData = getFilteredData();
@@ -229,9 +236,9 @@ export default function MatchResultPage() {
         item,
       };
     });
-    
+
     const matches = results.filter(r => r.prize !== null);
-    
+
     const prizeOrder = prizeLevels;
     matches.sort((a, b) => {
       const aIdx = a.prizeLevel ? prizeOrder.indexOf(a.prizeLevel) : prizeOrder.length;
@@ -239,17 +246,19 @@ export default function MatchResultPage() {
       if (aIdx !== bIdx) return aIdx - bIdx;
       return Number(b.term) - Number(a.term);
     });
-    
+
     const maxMatch = matches.length > 0 ? matches[0].total : 0;
     const bestPrize = matches.length > 0 ? matches[0].prizeLevel : null;
-    
+
     return { total: matches.length, matches, maxMatch, prizeLevel: bestPrize };
-  }, [getFilteredData]);
+  }, [getFilteredData, getPrizeLevel, prizeLevels]);
 
   // 复式不再展开为所有组合，直接以一整注匹配历史，避免注数过多导致卡顿
-  const totalMatches = customTickets.length > 0
-    ? customTickets.map(ticket => calculateMatches(ticket))
-    : [];
+  // memo：仅当 customTickets / 数据范围 / 彩种变化时重算，避免每渲染遍历数千期
+  const totalMatches = useMemo(
+    () => (customTickets.length > 0 ? customTickets.map(ticket => calculateMatches(ticket)) : []),
+    [customTickets, calculateMatches],
+  );
 
   const grandTotal = totalMatches.reduce((sum, m) => sum + m.total, 0);
   const bestPrize = totalMatches.length > 0
@@ -1067,8 +1076,8 @@ export default function MatchResultPage() {
 
                   {customTickets.map((ticket, ticketIdx) => {
                     const compound = isCompoundTicket(ticket, rule);
-                    const matchResult = calculateMatches(ticket);
-                    if (matchResult.matches.length === 0) return null;
+                    const matchResult = totalMatches[ticketIdx];
+                    if (!matchResult || matchResult.matches.length === 0) return null;
 
                     const isMatchCollapsed = collapsedMatches.has(ticketIdx);
                     const toggleMatch = () =>
@@ -1124,7 +1133,7 @@ export default function MatchResultPage() {
                         {!isMatchCollapsed && (
                           <div className="divide-y divide-ink-700/60">
                           {matchResult.matches.slice(0, 30).map((m, i) => {
-                            const prize = getPrizeLevel(m.frontMatch, m.backMatch);
+                            const prize = m.prize;
                             const item = m.item as LotteryItem;
                             return (
                               <div key={i} className="px-4 py-3 hover:bg-ink-900/30">

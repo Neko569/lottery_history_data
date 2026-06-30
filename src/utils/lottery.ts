@@ -266,10 +266,13 @@ export function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
-/** 在 [1, max] 范围内随机抽取 count 个不重复号码（升序、补零） */
+/** 在 [1, max] 范围内随机抽取 count 个不重复号码（升序、补零）
+ *  防御：count 超过 max 时 clamp 到 max，count <= 0 时返回空数组，避免无限循环 */
 export function pickNumbers(count: number, max: number): string[] {
+  const safeCount = Math.min(Math.max(count, 0), max);
+  if (safeCount === 0) return [];
   const pool = new Set<number>();
-  while (pool.size < count) {
+  while (pool.size < safeCount) {
     pool.add(Math.floor(Math.random() * max) + 1);
   }
   return Array.from(pool)
