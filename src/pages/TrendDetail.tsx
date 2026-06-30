@@ -12,6 +12,13 @@ export default function TrendDetail() {
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);
   const fetchRemoteData = useLotteryStore((s) => s.fetchRemoteData);
+  const setActiveLottery = useLotteryStore((s) => s.setActiveLottery);
+
+  // 同步全局 activeLottery：使 Navbar 的「走势」入口与当前页彩种一致，
+  // 避免切换彩种后导航栏链接失配导致高亮样式丢失
+  useEffect(() => {
+    setActiveLottery(type);
+  }, [type, setActiveLottery]);
 
   useEffect(() => {
     if (!state.data && !state.loading) {
