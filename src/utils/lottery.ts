@@ -3,7 +3,7 @@ import type { LotteryRule, RandomTicket, PrizeTier } from "@/types/lottery";
 // ──────────────────────────────────────────────
 // 彩种注册表（单一数据源）
 // 新增彩种只需在此追加一条配置，无需改动其它文件。
-// 下方 LOTTERY_RULES / PRIZE_TABLE / REMOTE_JSON_URLS / GITEE_CSV_URLS
+// 下方 LOTTERY_RULES / PRIZE_TABLE / REMOTE_JSON_URLS / JSDELIVR_JSON_URLS
 // 均由本注册表派生，保持向后兼容。
 // ──────────────────────────────────────────────
 
@@ -93,10 +93,10 @@ export interface LotteryConfig {
   rule: LotteryRule;
   /** 奖级表 */
   prizeTable: PrizeTier[];
-  /** 远程 JSON 数据地址（jsDelivr 镜像 GitHub） */
+  /** 远程 JSON 数据地址（GitHub raw） */
   remoteJsonUrl: string;
-  /** 备用 CSV 数据地址（jsDelivr 镜像 GitHub） */
-  giteeCsvUrl: string;
+  /** 备用 JSON 数据地址（jsDelivr 镜像 GitHub） */
+  jsdelivrJsonUrl: string;
   /** 前区球渐变色（canvas 导出用） */
   frontBallColors: BallColors;
   /** 后区球渐变色（canvas 导出用） */
@@ -138,8 +138,8 @@ const dltConfig: LotteryConfig = {
     { level: "六等奖", conditions: [{ front: 3, back: 1 }, { front: 2, back: 2 }], bonus: "15 元（奖池≥8亿时 18 元）", kind: "fixed" },
     { level: "七等奖", conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 2 }, { front: 0, back: 2 }], bonus: "5 元（奖池≥8亿时 7 元）", kind: "fixed" },
   ],
-  remoteJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/dlt_history.json",
-  giteeCsvUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/dlt_history.csv",
+  remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.json",
+  jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/dlt_history.json",
   frontBallColors: { from: "#ef4444", to: "#b91c1c" },
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "超级", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#FFD700" },
@@ -187,8 +187,8 @@ const ssqConfig: LotteryConfig = {
     { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 1 }], bonus: "10 元", kind: "fixed" },
     { level: "六等奖", conditions: [{ front: 2, back: 1 }, { front: 1, back: 1 }, { front: 0, back: 1 }], bonus: "5 元", kind: "fixed" },
   ],
-  remoteJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/ssq_history.json",
-  giteeCsvUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/ssq_history.csv",
+  remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.json",
+  jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/ssq_history.json",
   frontBallColors: { from: "#ef4444", to: "#b91c1c" },
   backBallColors: { from: "#3b82f6", to: "#1d4ed8" },
   logo: { topText: "中国", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#3A86FF" },
@@ -245,14 +245,14 @@ export const PRIZE_TABLE: Record<LotteryType, PrizeTier[]> = Object.fromEntries(
   LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].prizeTable]),
 ) as Record<LotteryType, PrizeTier[]>;
 
-/** 远程数据地址（jsDelivr JSON，优先使用） — 由注册表派生 */
+/** 远程数据地址（GitHub JSON，优先使用） — 由注册表派生 */
 export const REMOTE_JSON_URLS: Record<LotteryType, string> = Object.fromEntries(
   LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].remoteJsonUrl]),
 ) as Record<LotteryType, string>;
 
-/** 备用远程数据地址（jsDelivr CSV，JSON 获取失败时的 fallback） — 由注册表派生 */
-export const GITEE_CSV_URLS: Record<LotteryType, string> = Object.fromEntries(
-  LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].giteeCsvUrl]),
+/** 备用远程数据地址（jsDelivr JSON，GitHub JSON 获取失败时的 fallback） — 由注册表派生 */
+export const JSDELIVR_JSON_URLS: Record<LotteryType, string> = Object.fromEntries(
+  LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].jsdelivrJsonUrl]),
 ) as Record<LotteryType, string>;
 
 /** 数据源仓库地址（展示用，所有彩种共用同一仓库） */
