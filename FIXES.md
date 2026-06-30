@@ -35,7 +35,7 @@
 
 ### P1 — 性能 / 正确性
 
-- [ ] **3. MatchResultPage `calculateMatches` 每渲染重算 2 次 + 列表内重复调用 `getPrizeLevel`**
+- [x] **3. MatchResultPage `calculateMatches` 每渲染重算 2 次 + 列表内重复调用 `getPrizeLevel`**
   - 现状：
     - `totalMatches`（约 250 行）`customTickets.map(calculateMatches)` 每渲染重算；
     - 列表渲染（约 1070 行）又对每注 `calculateMatches(ticket)` 再算一次；
@@ -76,3 +76,4 @@
 （每完成一项追加一行：`- YYYY-MM-DD 完成项 N — commit <sha>`）
 - 2026-06-30 完成项 1 — 删除 MatchResultPage 未使用的 `LotteryType` 导入，消除 ESLint error
 - 2026-06-30 完成项 2 — lotteryStore `fetchRemoteData` 解构去掉未使用的 `source`，消除 ESLint error
+- 2026-06-30 完成项 3 — `prizeLevels`/`getPrizeLevel`/`calculateMatches`/`totalMatches` 全部 memo 化；列表渲染复用 `totalMatches[ticketIdx]` 与 `m.prize`，删除二次 `calculateMatches` 与重算 `getPrizeLevel`；顺带消除 exhaustive-deps 警告，ESLint 归零
