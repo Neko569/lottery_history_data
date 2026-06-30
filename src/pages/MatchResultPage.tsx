@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { RandomTicket, LotteryItem } from "@/types/lottery";
@@ -185,6 +185,13 @@ export default function MatchResultPage() {
   const loading = state.loading;
   const error = state.error;
   const source = state.source;
+
+  // 深链接（直接访问 /match?type=xxx）无数据时自动拉取，与 TrendDetail 行为一致
+  useEffect(() => {
+    if (!data && !loading) {
+      fetchRemoteData(type);
+    }
+  }, [type, data, loading, fetchRemoteData]);
 
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
     return ticket.front.length >= rule.frontCount && ticket.back.length >= rule.backCount;

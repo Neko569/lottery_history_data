@@ -44,7 +44,7 @@
   - 方案：`useMemo` 缓存 `totalMatches`；列表渲染直接复用 `totalMatches[ticketIdx]`，删除列表内的二次 `calculateMatches` 与 `getPrizeLevel` 重算。同时消除 `useCallback` exhaustive-deps 警告。
   - 影响文件：`src/pages/MatchResultPage.tsx`
 
-- [ ] **4. MatchResultPage 深链接无数据时不自动加载（与 TrendDetail 行为不一致）**
+- [x] **4. MatchResultPage 深链接无数据时不自动加载（与 TrendDetail 行为不一致）**
   - 现状：直接访问 `/match?type=ssq` 且 store 无数据时，页面不触发 `fetchRemoteData`，对比区空白；TrendDetail 有 mount 时自动拉取的 `useEffect`，两者行为不一致。
   - 方案：在 MatchResultPage 加 `useEffect`，`state.data` 为空且非 loading 时触发 `fetchRemoteData(type)`，与 TrendDetail 对齐。
   - 影响文件：`src/pages/MatchResultPage.tsx`
@@ -77,3 +77,4 @@
 - 2026-06-30 完成项 1 — 删除 MatchResultPage 未使用的 `LotteryType` 导入，消除 ESLint error
 - 2026-06-30 完成项 2 — lotteryStore `fetchRemoteData` 解构去掉未使用的 `source`，消除 ESLint error
 - 2026-06-30 完成项 3 — `prizeLevels`/`getPrizeLevel`/`calculateMatches`/`totalMatches` 全部 memo 化；列表渲染复用 `totalMatches[ticketIdx]` 与 `m.prize`，删除二次 `calculateMatches` 与重算 `getPrizeLevel`；顺带消除 exhaustive-deps 警告，ESLint 归零
+- 2026-06-30 完成项 4 — MatchResultPage 加 `useEffect`，深链接 `/match?type=xxx` 无数据时自动 `fetchRemoteData`，与 TrendDetail 行为对齐
