@@ -52,3 +52,23 @@ export interface RandomTicket {
   front: string[];
   back: string[];
 }
+
+/** 单个奖级的中奖条件（前区/红球命中数 + 后区/蓝球命中数） */
+export interface PrizeCondition {
+  front: number;
+  back: number;
+}
+
+/** 奖级定义：奖级名称、中奖条件、奖金及类型 */
+export interface PrizeTier {
+  /** 奖级名称，如 "一等奖" */
+  level: string;
+  /** 命中条件列表，满足任一即中该奖级 */
+  conditions: PrizeCondition[];
+  /** 奖金描述（浮动奖为说明，固定奖为金额） */
+  bonus: string;
+  /** 奖级类型：浮动奖 / 固定奖 */
+  kind: "floating" | "fixed";
+  /** 备注（如 2026 新规特别说明） */
+  note?: string;
+}
