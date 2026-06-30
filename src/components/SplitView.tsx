@@ -1,10 +1,11 @@
 import LotteryPanel from "./LotteryPanel";
+import { LOTTERY_TYPES } from "@/utils/lottery";
 
 interface SplitViewProps {
   isDesktop: boolean;
 }
 
-/** 分屏视图：左右分别展示大乐透与双色球 */
+/** 分屏视图：遍历注册表全部彩种，分别展示独立面板 */
 export default function SplitView({ isDesktop }: SplitViewProps) {
   return (
     <div
@@ -14,12 +15,11 @@ export default function SplitView({ isDesktop }: SplitViewProps) {
           : "flex flex-col gap-4"
       }
     >
-      <div className="min-w-0">
-        <LotteryPanel type="dlt" isDesktop={isDesktop} compact />
-      </div>
-      <div className="min-w-0">
-        <LotteryPanel type="ssq" isDesktop={isDesktop} compact />
-      </div>
+      {LOTTERY_TYPES.map((t) => (
+        <div key={t} className="min-w-0">
+          <LotteryPanel type={t} isDesktop={isDesktop} compact />
+        </div>
+      ))}
     </div>
   );
 }

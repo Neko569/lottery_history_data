@@ -36,7 +36,7 @@
 
 ### P1 — 彩种切换 UI 动态化
 
-- [ ] **4. `SplitView` / `TrendDetail` / `MatchResultPage` 彩种切换按钮动态化**
+- [x] **4. `SplitView` / `TrendDetail` / `MatchResultPage` 彩种切换按钮动态化**
   - 现状：
     - `SplitView` 硬编码 `<LotteryPanel type="dlt" />` 与 `type="ssq"`；
     - `TrendDetail` 维护 `TREND_TYPES: LotteryType[] = ["dlt", "ssq"]`；
@@ -96,3 +96,4 @@
 - 2026-06-30 完成项 1 — 建立中心化彩种注册表 `LOTTERIES`，`LOTTERY_RULES`/`PRIZE_TABLE`/`REMOTE_JSON_URLS`/`GITEE_CSV_URLS`/`getPrizeLevels`/`getPrizeTierByMatch` 均改为由注册表派生
 - 2026-06-30 完成项 2 — `LotteryType` 改为 `keyof typeof LOTTERIES`（types/lottery.ts 改为 re-export，避免调用方改 import）；`isLotteryType` 改为基于注册表 `hasOwnProperty` 判断
 - 2026-06-30 完成项 3 — `lotteryStore` 的 `states`/`reqTokens`/`activeLottery` 初值/`fetchAllRemote`/`setPageSize` 全部改为遍历 `LOTTERY_TYPES` 派生，新增彩种自动纳入
+- 2026-06-30 完成项 4 — `SplitView` 遍历 `LOTTERY_TYPES` 渲染面板；`TrendDetail` 删除 `TREND_TYPES` 改用 `LOTTERY_TYPES`；`MatchResultPage` 顶部彩种切换按钮改为遍历渲染、文案取 `rule.name`

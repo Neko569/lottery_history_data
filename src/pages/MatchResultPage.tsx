@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch } from "@/utils/lottery";
+import { LOTTERY_RULES, LOTTERY_TYPES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
 import { isDarkMode } from "@/hooks/useTheme";
@@ -668,32 +668,22 @@ export default function MatchResultPage() {
               </span>
             )}
             <div className="flex rounded-lg border border-ink-600 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTickets([{ front: [], back: [] }]);
-                  navigate(`/match?type=dlt`);
-                }}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300"
-                )}
-              >
-                大乐透
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTickets([{ front: [], back: [] }]);
-                  navigate(`/match?type=ssq`);
-                }}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300"
-                )}
-              >
-                双色球
-              </button>
+              {LOTTERY_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setCustomTickets([{ front: [], back: [] }]);
+                    navigate(`/match?type=${t}`);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors",
+                    type === t ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300",
+                  )}
+                >
+                  {LOTTERY_RULES[t].name}
+                </button>
+              ))}
             </div>
           </div>
         </div>
