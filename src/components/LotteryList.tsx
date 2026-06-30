@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { LotteryData, LotteryType } from "@/types/lottery";
-import { LOTTERY_RULES } from "@/utils/lottery";
+import { LOTTERY_RULES, ACCENT_STYLES } from "@/utils/lottery";
 import LotteryBall from "./LotteryBall";
 import Pagination from "./Pagination";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ export default function LotteryList({
             <span
               className={cn(
                 "font-medium",
-                rule.accent === "crimson" ? "text-crimson-400" : "text-indigo-400",
+                ACCENT_STYLES[rule.accent].text400,
               )}
             >
               {rule.frontLabel}
@@ -70,7 +70,7 @@ export default function LotteryList({
             <span
               className={cn(
                 "font-medium",
-                rule.accent === "crimson" ? "text-indigo-400" : "text-crimson-400",
+                ACCENT_STYLES[rule.accent].text400Alt,
               )}
             >
               {rule.backLabel}

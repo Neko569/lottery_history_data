@@ -1,13 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { LotteryType } from "@/types/lottery";
-import { LOTTERY_RULES, toLotteryType } from "@/utils/lottery";
+import { LOTTERY_RULES, LOTTERY_TYPES, toLotteryType, type LotteryType } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import FullNumberTrendChart from "@/components/FullNumberTrendChart";
 import { cn } from "@/lib/utils";
-
-/** 走势页可选彩种，与对比分析页保持一致 */
-const TREND_TYPES: LotteryType[] = ["dlt", "ssq"];
 
 export default function TrendDetail() {
   const navigate = useNavigate();
@@ -16,6 +12,13 @@ export default function TrendDetail() {
   const rule = LOTTERY_RULES[type];
   const state = useLotteryStore((s) => s.states[type]);
   const fetchRemoteData = useLotteryStore((s) => s.fetchRemoteData);
+  const setActiveLottery = useLotteryStore((s) => s.setActiveLottery);
+
+  // 同步全局 activeLottery：使 Navbar 的「走势」入口与当前页彩种一致，
+  // 避免切换彩种后导航栏链接失配导致高亮样式丢失
+  useEffect(() => {
+    setActiveLottery(type);
+  }, [type, setActiveLottery]);
 
   useEffect(() => {
     if (!state.data && !state.loading) {
@@ -36,9 +39,9 @@ export default function TrendDetail() {
             </p>
           </div>
 
-          {/* 彩种切换 */}
+          {/* 彩种切换：遍历注册表全部彩种 */}
           <div className="flex shrink-0 rounded-lg border border-ink-600 overflow-hidden">
-            {TREND_TYPES.map((t) => (
+            {LOTTERY_TYPES.map((t) => (
               <button
                 key={t}
                 type="button"

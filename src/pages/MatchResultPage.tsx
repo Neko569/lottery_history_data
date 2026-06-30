@@ -2,10 +2,10 @@ import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch } from "@/utils/lottery";
+import { LOTTERY_RULES, LOTTERY_TYPES, LOTTERIES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, type LotteryPackage } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
-import { isDarkMode } from "@/hooks/useTheme";
+import { exportTicketsToImage, isCompoundTicket } from "@/utils/exportTickets";
 import { cn } from "@/lib/utils";
 
 type RangeOption = 30 | 50 | 100 | "all";
@@ -17,251 +17,10 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: "all", label: "所有期数" },
 ];
 
-/** 号码选择网格每行列数：保证每行数字数量一致（优先整除）
- *  dlt 前区 35 → 移动端 7 列（5 行整除）；桌面端 11 列（更紧凑，末行 2 个居中）
- *  dlt 后区 12 → 6 列（2 行整除）
- *  ssq 前区 33 → 移动端 7 列；桌面端 11 列（3 行整除）
- *  ssq 后区 16 → 8 列（2 行整除） */
-const PICK_GRID_COLS: Record<LotteryType, { front: string; back: string }> = {
-  dlt: { front: "grid-cols-7 lg:grid-cols-11", back: "grid-cols-6" },
-  ssq: { front: "grid-cols-7 sm:grid-cols-11", back: "grid-cols-8" },
-};
-
-/** 大乐透套餐票组合部件：单式或复式 */
-interface DltPackagePart {
-  /** "single" 单式 5+2 / "compound" 复式 */
-  kind: "single" | "compound";
-  /** 前区个数 */
-  front: number;
-  /** 后区个数 */
-  back: number;
-  /** 生成几注（单式为注数，复式为1组） */
-  count: number;
-}
-
-/** 大乐透套餐票（仅大乐透支持，双色球保持不变）
- *  依据体彩官方四款固定面值套餐：18/28/58/88 元，每款由若干单式 + 复式组合而成 */
-interface DltPackage {
-  id: string;
-  name: string;
-  price: number;
-  parts: DltPackagePart[];
-}
-
-const DLT_PACKAGES: DltPackage[] = [
-  {
-    id: "p18",
-    name: "崭露头角",
-    price: 18,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 6 },
-      { kind: "compound", front: 5, back: 3, count: 1 },
-    ],
-  },
-  {
-    id: "p28",
-    name: "鱼跃龙门",
-    price: 28,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 8 },
-      { kind: "compound", front: 6, back: 2, count: 1 },
-    ],
-  },
-  {
-    id: "p58",
-    name: "马到功成",
-    price: 58,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 8 },
-      { kind: "compound", front: 7, back: 2, count: 1 },
-    ],
-  },
-  {
-    id: "p88",
-    name: "高飞远翔",
-    price: 88,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 5 },
-      { kind: "compound", front: 6, back: 3, count: 1 },
-      { kind: "compound", front: 7, back: 2, count: 1 },
-    ],
-  },
-];
-
-const PRIZE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "一等奖": { bg: "bg-gradient-to-r from-yellow-400 to-amber-500", text: "text-yellow-900", border: "border-yellow-400" },
-  "二等奖": { bg: "bg-gradient-to-r from-purple-400 to-fuchsia-500", text: "text-white", border: "border-purple-400" },
-  "三等奖": { bg: "bg-gradient-to-r from-blue-400 to-cyan-500", text: "text-white", border: "border-blue-400" },
-  "四等奖": { bg: "bg-gradient-to-r from-green-400 to-emerald-500", text: "text-white", border: "border-green-400" },
-  "五等奖": { bg: "bg-gradient-to-r from-teal-400 to-cyan-500", text: "text-white", border: "border-teal-400" },
-  "六等奖": { bg: "bg-zinc-500", text: "text-white", border: "border-zinc-500" },
-  "七等奖": { bg: "bg-zinc-600", text: "text-white", border: "border-zinc-600" },
-  "八等奖": { bg: "bg-zinc-700", text: "text-zinc-200", border: "border-zinc-700" },
-  "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
-};
-
-/** 导出号码为图片（颜色随当前主题模式变化） */
-const exportAsImage = (tickets: LotteryTicket[], type: LotteryType, rule: typeof LOTTERY_RULES.dlt) => {
-  const isDlt = type === "dlt";
-  const dark = isDarkMode();
-  const padding = 40;
-  const ballSize = 36;
-  const ballGap = 8;
-  const rowGap = 20;
-  const separatorWidth = 30;
-  const labelHeight = 60;
-
-  // 主题相关颜色
-  const bgColor = dark ? "#0a0a12" : "#ffffff";
-  const titleColor = dark ? "#f4f4f5" : "#27272a";
-  const indexColor = dark ? "#a1a1aa" : "#71717a";
-  const separatorColor = dark ? "#3a3a4a" : "#d1d1d8";
-  const compoundTagColor = "#f59e0b";
-
-  const frontBalls = rule.frontCount;
-  const backBalls = rule.backCount;
-
-  // 按每注自身是否复式计算尺寸（复式与单式混合时各自独立）
-  const getTicketWidth = (ticket: LotteryTicket) => {
-    if (isCompoundTicket(ticket, rule)) {
-      // 复式：上下两排，取前后区最大宽度
-      const maxBalls = Math.max(ticket.front.length, ticket.back.length);
-      return padding * 2 + maxBalls * ballSize + (maxBalls - 1) * ballGap;
-    }
-    // 单式：同一排
-    return padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
-  };
-  const getTicketHeight = (ticket: LotteryTicket) =>
-    isCompoundTicket(ticket, rule) ? ballSize * 2 + rowGap + 16 : ballSize + rowGap;
-
-  const width = Math.max(...tickets.map(getTicketWidth));
-  const height = labelHeight + tickets.reduce((sum, t) => sum + getTicketHeight(t), 0) + padding;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width * 2;
-  canvas.height = height * 2;
-  const ctx = canvas.getContext("2d")!;
-  ctx.scale(2, 2);
-
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.fillStyle = titleColor;
-  ctx.font = "bold 24px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(rule.name, width / 2, 36);
-
-  // 绘制号码的辅助函数
-  const drawBall = (x: number, y: number, num: string, isFront: boolean) => {
-    const gradient = ctx.createRadialGradient(x - 3, y - 3, 0, x, y, ballSize / 2);
-    if (isFront) {
-      gradient.addColorStop(0, "#ef4444");
-      gradient.addColorStop(1, "#b91c1c");
-    } else if (isDlt) {
-      gradient.addColorStop(0, "#818cf8");
-      gradient.addColorStop(1, "#4f46e5");
-    } else {
-      gradient.addColorStop(0, "#3b82f6");
-      gradient.addColorStop(1, "#1d4ed8");
-    }
-    ctx.beginPath();
-    ctx.arc(x, y, ballSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
-    ctx.fill();
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 16px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(num, x, y);
-  };
-
-  // 逐注绘制：复式上下两排，单式同一排（各自独立判断）
-  let currentY = labelHeight;
-  tickets.forEach((ticket, ticketIdx) => {
-    if (isCompoundTicket(ticket, rule)) {
-      // 复式：上下两排布局
-      const centerX = width / 2;
-
-      // 前区（上排）—— 左对齐
-      const frontWidth = ticket.front.length * ballSize + (ticket.front.length - 1) * ballGap;
-      const frontStartX = padding;
-      ticket.front.forEach((num, i) => {
-        const x = frontStartX + i * (ballSize + ballGap) + ballSize / 2;
-        const y = currentY + ballSize / 2;
-        drawBall(x, y, num, true);
-      });
-
-      // 后区（下排）—— 左对齐
-      const backWidth = ticket.back.length * ballSize + (ticket.back.length - 1) * ballGap;
-      const backStartX = padding;
-      ticket.back.forEach((num, i) => {
-        const x = backStartX + i * (ballSize + ballGap) + ballSize / 2;
-        const y = currentY + ballSize + rowGap + ballSize / 2;
-        drawBall(x, y, num, false);
-      });
-
-      // 期号
-      ctx.fillStyle = indexColor;
-      ctx.font = "14px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillText(`${ticketIdx + 1}`, 8, currentY + ballSize / 2 + 4);
-
-      // 复式标签
-      ctx.fillStyle = compoundTagColor;
-      ctx.font = "12px sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillText("复式", width - 8, currentY + ballSize / 2 + 4);
-
-      currentY += ballSize * 2 + rowGap + 16;
-    } else {
-      // 单式：同一排布局
-      const y = currentY;
-
-      // 前区球
-      ticket.front.forEach((num, i) => {
-        const x = padding + i * (ballSize + ballGap) + ballSize / 2;
-        const ballY = y + ballSize / 2;
-        drawBall(x, ballY, num, true);
-      });
-
-      // 分隔符
-      const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
-      ctx.fillStyle = separatorColor;
-      ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
-
-      // 后区球
-      ticket.back.forEach((num, i) => {
-        const x = separatorX + separatorWidth + i * (ballSize + ballGap) + ballSize / 2;
-        const ballY = y + ballSize / 2;
-        drawBall(x, ballY, num, false);
-      });
-
-      ctx.fillStyle = indexColor;
-      ctx.font = "14px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
-
-      currentY += ballSize + rowGap;
-    }
-  });
-
-  const link = document.createElement("a");
-  link.download = `${type}-${Date.now()}.png`;
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-};
-
 interface LotteryTicket {
   front: string[];
   back: string[];
 }
-
-/** 判断一注是否为复式：任一区选号数超过正常一注数量即为复式 */
-const isCompoundTicket = (ticket: { front: string[]; back: string[] }, rule: { frontCount: number; backCount: number }): boolean =>
-  ticket.front.length > rule.frontCount || ticket.back.length > rule.backCount;
 
 /** 文本导入解析结果 */
 interface ParseResult {
@@ -366,6 +125,10 @@ export default function MatchResultPage() {
   
   const type = toLotteryType(searchParams.get("type"));
   const ticketsJson = searchParams.get("tickets");
+  // 彩种级配置（由注册表派生，新增彩种自动生效）
+  const lottery = LOTTERIES[type];
+  const PRIZE_COLORS = lottery.prizeColors;
+  const PACKAGES = lottery.packages;
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
@@ -586,8 +349,8 @@ export default function MatchResultPage() {
     }, 0);
   };
 
-  /** 按套餐票生成：仅大乐透，按选定价位套餐生成全部单式+复式组合，替换当前选号 */
-  const handleGeneratePackage = (pkg: DltPackage) => {
+  /** 按套餐票生成：按选定价位套餐生成全部单式+复式组合，替换当前选号 */
+  const handleGeneratePackage = (pkg: LotteryPackage) => {
     const newTickets: LotteryTicket[] = [];
     pkg.parts.forEach((part) => {
       for (let i = 0; i < part.count; i++) {
@@ -668,32 +431,22 @@ export default function MatchResultPage() {
               </span>
             )}
             <div className="flex rounded-lg border border-ink-600 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTickets([{ front: [], back: [] }]);
-                  navigate(`/match?type=dlt`);
-                }}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  type === "dlt" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300"
-                )}
-              >
-                大乐透
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTickets([{ front: [], back: [] }]);
-                  navigate(`/match?type=ssq`);
-                }}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  type === "ssq" ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300"
-                )}
-              >
-                双色球
-              </button>
+              {LOTTERY_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setCustomTickets([{ front: [], back: [] }]);
+                    navigate(`/match?type=${t}`);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors",
+                    type === t ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300",
+                  )}
+                >
+                  {LOTTERY_RULES[t].name}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -881,14 +634,9 @@ export default function MatchResultPage() {
                       ))}
                     </tbody>
                   </table>
-                  {type === "dlt" && (
+                  {lottery.ruleNote && (
                     <div className="border-t border-ink-700/60 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-                      新规：当奖池资金高于 8 亿元（含）时，三~七等奖按更高固定金额派奖（详见各奖级奖金列）。
-                    </div>
-                  )}
-                  {type === "ssq" && (
-                    <div className="border-t border-ink-700/60 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-                      2026 新规：当奖池高于 15 亿元（含）执行特别规定期间，固定奖级增设「福运奖」（命中 3 个红球，即 3+0，单注 5 元），直至奖池资金低于 3 亿元时停止。
+                      {lottery.ruleNote}
                     </div>
                   )}
                 </div>
@@ -1045,7 +793,7 @@ export default function MatchResultPage() {
                         )}
                       </div>
 
-                      {type === "dlt" && (
+                      {PACKAGES && PACKAGES.length > 0 && (
                         <div className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
                     <div className="mb-2 flex items-center gap-2">
                       <Package className="h-3.5 w-3.5 text-gold" />
@@ -1053,7 +801,7 @@ export default function MatchResultPage() {
                       <span className="text-[10px] text-zinc-500 dark:text-zinc-400">点击生成对应价位组合（替换当前选号）</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {DLT_PACKAGES.map((pkg) => (
+                      {PACKAGES.map((pkg) => (
                         <button
                           key={pkg.id}
                           type="button"
@@ -1181,7 +929,7 @@ export default function MatchResultPage() {
                               {rule.frontLabel} ({ticket.front.length}/{rule.frontMax}，最少{rule.frontCount})
                             </span>
                           </div>
-                          <div className={cn("grid gap-1", PICK_GRID_COLS[type].front)}>
+                          <div className={cn("grid gap-1", lottery.pickGridCols.front)}>
                             {Array.from({ length: rule.frontMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}
@@ -1206,7 +954,7 @@ export default function MatchResultPage() {
                               {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
                             </span>
                           </div>
-                          <div className={cn("grid gap-1", PICK_GRID_COLS[type].back)}>
+                          <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
                             {Array.from({ length: rule.backMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}
@@ -1248,7 +996,7 @@ export default function MatchResultPage() {
                     {customTickets.some(t => t.front.length > 0 || t.back.length > 0) && (
                       <button
                         type="button"
-                        onClick={() => exportAsImage(customTickets, type, rule)}
+                        onClick={() => exportTicketsToImage(customTickets, type)}
                         className="btn btn-sm text-zinc-500 hover:text-indigo dark:text-zinc-400"
                       >
                         <Download className="h-3 w-3" />

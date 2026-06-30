@@ -5,6 +5,7 @@ import {
   GITEE_CSV_URLS,
   DATA_REPO_URLS,
   DEFAULT_PAGE_SIZE,
+  LOTTERY_TYPES,
 } from "@/utils/lottery";
 import {
   parseLotteryData,
@@ -35,8 +36,11 @@ const initialLotteryState: LotteryState = {
 // 竞态控制：每个彩种维护一个递增的请求 token，
 // fetch / upload 共用同一 token 互斥。
 // 异步操作返回时若 token 已过期，说明被新请求取代，丢弃结果。
+// 初始 token 表由注册表派生，新增彩种自动纳入。
 // ──────────────────────────────────────────────
-const reqTokens: Record<LotteryType, number> = { dlt: 0, ssq: 0 };
+const reqTokens: Record<LotteryType, number> = Object.fromEntries(
+  LOTTERY_TYPES.map((t) => [t, 0]),
+) as Record<LotteryType, number>;
 
 /** 单次请求超时时间（毫秒） */
 const FETCH_TIMEOUT = 6000;
@@ -124,12 +128,14 @@ async function fetchWithFallback(
   }
 }
 
+/** 初始 states：由注册表派生，每个彩种一份独立运行时状态 */
+const initialStates: Record<LotteryType, LotteryState> = Object.fromEntries(
+  LOTTERY_TYPES.map((t) => [t, { ...initialLotteryState }]),
+) as Record<LotteryType, LotteryState>;
+
 export const useLotteryStore = create<LotteryStore>((set, get) => ({
-  states: {
-    dlt: { ...initialLotteryState },
-    ssq: { ...initialLotteryState },
-  },
-  activeLottery: "dlt",
+  states: initialStates,
+  activeLottery: LOTTERY_TYPES[0],
   splitView: false,
   pageSize: DEFAULT_PAGE_SIZE,
   isDesktop: true,
@@ -179,7 +185,8 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
 
   fetchAllRemote: async () => {
     const { fetchRemoteData } = get();
-    await Promise.all([fetchRemoteData("dlt"), fetchRemoteData("ssq")]);
+    // 遍历注册表全部彩种并发拉取，新增彩种自动纳入
+    await Promise.all(LOTTERY_TYPES.map((t) => fetchRemoteData(t)));
   },
 
   uploadData: async (type, file) => {
@@ -229,10 +236,10 @@ export const useLotteryStore = create<LotteryStore>((set, get) => ({
   setPageSize: (size) =>
     set((s) => ({
       pageSize: size,
-      states: {
-        dlt: { ...s.states.dlt, currentPage: 1 },
-        ssq: { ...s.states.ssq, currentPage: 1 },
-      },
+      // 重置所有彩种页码为 1：遍历注册表，新增彩种自动纳入
+      states: Object.fromEntries(
+        LOTTERY_TYPES.map((t) => [t, { ...s.states[t], currentPage: 1 }]),
+      ) as Record<LotteryType, LotteryState>,
     })),
   setCurrentPage: (type, page) =>
     set((s) => ({

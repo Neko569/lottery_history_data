@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, TrendingUp } from "lucide-react";
 import type { LotteryType } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URLS } from "@/utils/lottery";
+import { LOTTERY_RULES, DATA_REPO_URLS, ACCENT_STYLES } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryList from "./LotteryList";
 import TrendChart from "./TrendChart";
@@ -32,10 +32,9 @@ export default function LotteryPanel({
   const uploadData = useLotteryStore((s) => s.uploadData);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const accentText =
-    rule.accent === "crimson" ? "text-crimson" : "text-indigo";
-  const accentBorder =
-    rule.accent === "crimson" ? "border-crimson/40" : "border-indigo/40";
+  const accent = ACCENT_STYLES[rule.accent];
+  const accentText = accent.text;
+  const accentBorder = accent.border;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
