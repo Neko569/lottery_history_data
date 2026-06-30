@@ -2,14 +2,13 @@ import { create } from "zustand";
 import type { LotteryData, LotteryType } from "@/types/lottery";
 import {
   REMOTE_JSON_URLS,
-  GITEE_CSV_URLS,
+  JSDELIVR_JSON_URLS,
   DATA_REPO_URLS,
   DEFAULT_PAGE_SIZE,
   LOTTERY_TYPES,
 } from "@/utils/lottery";
 import {
   parseLotteryData,
-  parseCSVLotteryData,
   parseLotteryText,
   readFileAsText,
 } from "@/utils/dataParser";
@@ -45,7 +44,7 @@ const reqTokens: Record<LotteryType, number> = Object.fromEntries(
 /** 单次请求超时时间（毫秒） */
 const FETCH_TIMEOUT = 6000;
 
-/** GitHub JSON 获取失败时的最大重试次数 */
+/** 主源（GitHub JSON）获取失败时的最大重试次数 */
 const MAX_RETRY = 1;
 
 interface LotteryStore {
@@ -65,8 +64,6 @@ interface LotteryStore {
   setDesktop: (isDesktop: boolean) => void;
 }
 
-/** 带超时的 fetch：先尝试 GitHub JSON，失败后 fallback 到 Gitee CSV */
-/** 发起单次带超时的 fetch，返回 Response；超时或失败抛异常 */
 /** 发起单次带超时的 fetch，超时或失败抛异常（使用 Promise.race 实现可靠超时） */
 async function fetchOnce(url: string): Promise<Response> {
   const timeoutPromise = new Promise<Response>((_, reject) => {
@@ -78,7 +75,7 @@ async function fetchOnce(url: string): Promise<Response> {
   return res;
 }
 
-/** 带重试的 fetch：先尝试 GitHub JSON（重试 MAX_RETRY 次），全部失败则 fallback 到 Gitee CSV */
+/** 带重试的 fetch：先尝试 GitHub JSON（重试 MAX_RETRY 次），全部失败则 fallback 到 jsDelivr JSON */
 async function fetchWithFallback(
   type: LotteryType,
 ): Promise<{ data: LotteryData; source: string }> {
@@ -99,16 +96,17 @@ async function fetchWithFallback(
     }
   }
 
-  // 第 2 步：GitHub JSON 全部失败，尝试 Gitee CSV（不重试）
+  // 第 2 步：GitHub JSON 全部失败，尝试 jsDelivr JSON（不重试）
   try {
-    const res = await fetchOnce(GITEE_CSV_URLS[type]);
+    const res = await fetchOnce(JSDELIVR_JSON_URLS[type]);
     if (res.ok) {
       const text = await res.text();
-      const data = parseCSVLotteryData(text, type);
-      return { data, source: "Gitee CSV" };
+      const json = JSON.parse(text);
+      const data = parseLotteryData(json);
+      return { data, source: "jsDelivr JSON" };
     }
-    throw new Error(`Gitee CSV 请求失败 (${res.status})`);
-  } catch (giteeErr) {
+    throw new Error(`jsDelivr JSON 请求失败 (${res.status})`);
+  } catch (jsdelivrErr) {
     // 第 3 步：两个源都失败，抛出带数据源链接的错误
     const githubMsg =
       githubLastErr instanceof DOMException && (githubLastErr as DOMException).name === "AbortError"
@@ -116,14 +114,14 @@ async function fetchWithFallback(
         : githubLastErr instanceof Error
           ? (githubLastErr as Error).message
           : String(githubLastErr);
-    const giteeMsg =
-      giteeErr instanceof DOMException && (giteeErr as DOMException).name === "AbortError"
+    const jsdelivrMsg =
+      jsdelivrErr instanceof DOMException && (jsdelivrErr as DOMException).name === "AbortError"
         ? "超时"
-        : giteeErr instanceof Error
-          ? (giteeErr as Error).message
-          : String(giteeErr);
+        : jsdelivrErr instanceof Error
+          ? (jsdelivrErr as Error).message
+          : String(jsdelivrErr);
     throw new Error(
-      `远程数据加载失败：GitHub JSON(${githubMsg})、Gitee CSV(${giteeMsg})`,
+      `远程数据加载失败：GitHub JSON(${githubMsg})、jsDelivr JSON(${jsdelivrMsg})`,
     );
   }
 }
