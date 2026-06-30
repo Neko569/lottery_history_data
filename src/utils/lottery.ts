@@ -1,4 +1,4 @@
-import type { LotteryRule, LotteryType, RandomTicket } from "@/types/lottery";
+import type { LotteryRule, LotteryType, RandomTicket, PrizeTier } from "@/types/lottery";
 
 /** 彩种规则映射 */
 export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
@@ -23,6 +23,50 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
     accent: "indigo",
   },
 };
+
+/**
+ * 各彩种奖级表（依据官方最新规则）
+ *  - 大乐透：共 9 个奖级，一/二等奖为浮动奖，三~九等为固定奖
+ *    来源：中国体彩网《超级大乐透游戏规则》第十五条
+ *  - 双色球：共 6 个奖级，一/二等奖为浮动奖，三~六等为固定奖
+ *    来源：中国福彩《双色球游戏规则》第十六条；2026 新规（26014 期起）一/二等奖单期总额封顶
+ */
+export const PRIZE_TABLE: Record<LotteryType, PrizeTier[]> = {
+  dlt: [
+    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（封顶 500 万）", kind: "floating" },
+    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（22%，封顶 500 万）", kind: "floating" },
+    { level: "三等奖", conditions: [{ front: 5, back: 0 }], bonus: "10,000 元", kind: "fixed" },
+    { level: "四等奖", conditions: [{ front: 4, back: 2 }], bonus: "3,000 元", kind: "fixed" },
+    { level: "五等奖", conditions: [{ front: 4, back: 1 }], bonus: "300 元", kind: "fixed" },
+    { level: "六等奖", conditions: [{ front: 3, back: 2 }], bonus: "200 元", kind: "fixed" },
+    { level: "七等奖", conditions: [{ front: 4, back: 0 }], bonus: "100 元", kind: "fixed" },
+    { level: "八等奖", conditions: [{ front: 3, back: 1 }, { front: 2, back: 2 }], bonus: "15 元", kind: "fixed" },
+    {
+      level: "九等奖",
+      conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 2 }, { front: 0, back: 2 }],
+      bonus: "5 元",
+      kind: "fixed",
+    },
+  ],
+  ssq: [
+    { level: "一等奖", conditions: [{ front: 6, back: 1 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "2026 新规：单期总额封顶 1 亿" },
+    { level: "二等奖", conditions: [{ front: 6, back: 0 }], bonus: "浮动（30%，封顶 500 万）", kind: "floating", note: "2026 新规：单期封顶 7000 万" },
+    { level: "三等奖", conditions: [{ front: 5, back: 1 }], bonus: "3,000 元", kind: "fixed" },
+    { level: "四等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 1 }], bonus: "200 元", kind: "fixed" },
+    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 1 }], bonus: "10 元", kind: "fixed" },
+    { level: "六等奖", conditions: [{ front: 2, back: 1 }, { front: 1, back: 1 }, { front: 0, back: 1 }], bonus: "5 元", kind: "fixed" },
+  ],
+};
+
+/** 当前彩种的奖级名称列表（按奖级高低排序，一等奖在最前） */
+export function getPrizeLevels(type: LotteryType): string[] {
+  return PRIZE_TABLE[type].map((t) => t.level);
+}
+
+/** 根据命中数判定奖级；未中奖返回 null */
+export function getPrizeTierByMatch(type: LotteryType, frontMatch: number, backMatch: number): PrizeTier | null {
+  return PRIZE_TABLE[type].find((t) => t.conditions.some((c) => c.front === frontMatch && c.back === backMatch)) ?? null;
+}
 
 /** 远程数据地址（GitHub JSON，优先使用） */
 export const REMOTE_JSON_URLS: Record<LotteryType, string> = {

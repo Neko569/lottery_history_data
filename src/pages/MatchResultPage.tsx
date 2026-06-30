@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, DATA_REPO_URLS, generateTickets, generateTicketWithCounts, toLotteryType } from "@/utils/lottery";
+import { LOTTERY_RULES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
 import { isDarkMode } from "@/hooks/useTheme";
@@ -369,6 +369,19 @@ export default function MatchResultPage() {
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
+  /** 奖级表折叠状态：默认展开，便于直观对照最新规则 */
+  const [prizeTableCollapsed, setPrizeTableCollapsed] = useState(false);
+  /** 「不中指定奖级继续随机」开关 */
+  const [keepRandomUntilPrize, setKeepRandomUntilPrize] = useState(false);
+  /** 停止奖级（下拉选项与奖级表一致） */
+  const [targetPrizeLevel, setTargetPrizeLevel] = useState<string>(() => {
+    const levels = getPrizeLevels(toLotteryType(searchParams.get("type")));
+    return levels[levels.length - 1] ?? "九等奖";
+  });
+  /** 随机生成中状态 */
+  const [generating, setGenerating] = useState(false);
+  /** 随机生成结果说明（命中/未命中、尝试次数） */
+  const [genStatus, setGenStatus] = useState<string | null>(null);
   /** 文本导入区折叠状态：默认折叠，需要时展开 */
   const [importCollapsed, setImportCollapsed] = useState(true);
   /** 文本导入输入框内容 */
@@ -396,6 +409,12 @@ export default function MatchResultPage() {
   });
   
   const rule = LOTTERY_RULES[type];
+  /** 当前彩种奖级顺序（一等奖在前），用于排序与「随机到指定奖级」下拉 */
+  const prizeLevels = getPrizeLevels(type);
+  /** 生效的停止奖级：切换彩种时若原值不适用则回退到最低奖级 */
+  const effectiveTargetPrizeLevel = prizeLevels.includes(targetPrizeLevel)
+    ? targetPrizeLevel
+    : prizeLevels[prizeLevels.length - 1];
   const state = useLotteryStore((s) => s.states[type]);
   const fetchRemoteData = useLotteryStore((s) => s.fetchRemoteData);
   const uploadData = useLotteryStore((s) => s.uploadData);
@@ -417,27 +436,9 @@ export default function MatchResultPage() {
   }, [data, selectedRange]);
 
   const getPrizeLevel = (frontMatch: number, backMatch: number) => {
-    if (type === "dlt") {
-      if (frontMatch === 5 && backMatch === 2) return { level: "一等奖", ...PRIZE_COLORS["一等奖"] };
-      if (frontMatch === 5 && backMatch === 1) return { level: "二等奖", ...PRIZE_COLORS["二等奖"] };
-      if (frontMatch === 5 && backMatch === 0) return { level: "三等奖", ...PRIZE_COLORS["三等奖"] };
-      if (frontMatch === 4 && backMatch === 2) return { level: "四等奖", ...PRIZE_COLORS["四等奖"] };
-      if (frontMatch === 4 && backMatch === 1) return { level: "五等奖", ...PRIZE_COLORS["五等奖"] };
-      if (frontMatch === 3 && backMatch === 2) return { level: "六等奖", ...PRIZE_COLORS["六等奖"] };
-      if (frontMatch === 4 && backMatch === 0) return { level: "七等奖", ...PRIZE_COLORS["七等奖"] };
-      if ((frontMatch === 3 && backMatch === 1) || (frontMatch === 2 && backMatch === 2)) return { level: "八等奖", ...PRIZE_COLORS["八等奖"] };
-      if ((frontMatch === 3 && backMatch === 0) || (frontMatch === 2 && backMatch === 1) || (frontMatch === 1 && backMatch === 2) || (frontMatch === 0 && backMatch === 2)) return { level: "九等奖", ...PRIZE_COLORS["九等奖"] };
-    } else {
-      if (frontMatch === 6 && backMatch === 1) return { level: "一等奖", ...PRIZE_COLORS["一等奖"] };
-      if (frontMatch === 6 && backMatch === 0) return { level: "二等奖", ...PRIZE_COLORS["二等奖"] };
-      if (frontMatch === 5 && backMatch === 1) return { level: "三等奖", ...PRIZE_COLORS["三等奖"] };
-      if (frontMatch === 5 && backMatch === 0) return { level: "四等奖", ...PRIZE_COLORS["四等奖"] };
-      if (frontMatch === 4 && backMatch === 1) return { level: "五等奖", ...PRIZE_COLORS["五等奖"] };
-      if (frontMatch === 4 && backMatch === 0) return { level: "六等奖", ...PRIZE_COLORS["六等奖"] };
-      if (frontMatch === 3 && backMatch === 1) return { level: "七等奖", ...PRIZE_COLORS["七等奖"] };
-      if ((frontMatch === 3 && backMatch === 0) || (frontMatch === 2 && backMatch === 1) || (frontMatch === 1 && backMatch === 1) || (frontMatch === 0 && backMatch === 1)) return { level: "八等奖", ...PRIZE_COLORS["八等奖"] };
-    }
-    return null;
+    const tier = getPrizeTierByMatch(type, frontMatch, backMatch);
+    if (!tier) return null;
+    return { level: tier.level, ...PRIZE_COLORS[tier.level] };
   };
 
   const calculateMatches = useCallback((ticket: LotteryTicket) => {
@@ -468,7 +469,7 @@ export default function MatchResultPage() {
     
     const matches = results.filter(r => r.prize !== null);
     
-    const prizeOrder = ["一等奖", "二等奖", "三等奖", "四等奖", "五等奖", "六等奖", "七等奖", "八等奖", "九等奖"];
+    const prizeOrder = prizeLevels;
     matches.sort((a, b) => {
       const aIdx = a.prizeLevel ? prizeOrder.indexOf(a.prizeLevel) : prizeOrder.length;
       const bIdx = b.prizeLevel ? prizeOrder.indexOf(b.prizeLevel) : prizeOrder.length;
@@ -492,8 +493,7 @@ export default function MatchResultPage() {
     ? totalMatches.reduce<string | null>((best, m) => {
         if (!best) return m.prizeLevel;
         if (!m.prizeLevel) return best;
-        const levels = ["一等奖", "二等奖", "三等奖", "四等奖", "五等奖", "六等奖", "七等奖", "八等奖", "九等奖"];
-        return levels.indexOf(m.prizeLevel) < levels.indexOf(best) ? m.prizeLevel : best;
+        return prizeLevels.indexOf(m.prizeLevel) < prizeLevels.indexOf(best) ? m.prizeLevel : best;
       }, null)
     : null;
 
@@ -524,11 +524,66 @@ export default function MatchResultPage() {
   };
 
   const handleGenerateTicket = (ticketIndex: number) => {
-    const newTickets = generateTickets(type, 1);
-    setCustomTickets(customTickets.map((ticket, idx) => {
-      if (idx !== ticketIndex) return ticket;
-      return { ...newTickets[0] };
-    }));
+    // 开关关闭：单次随机，行为不变
+    if (!keepRandomUntilPrize) {
+      const t = generateTicket(type);
+      setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? { front: t.front, back: t.back } : ticket)));
+      setGenStatus(null);
+      return;
+    }
+
+    // 开关开启：不中指定奖级（或更高）就继续随机
+    const filteredData = getFilteredData();
+    const targetIdx = prizeLevels.indexOf(effectiveTargetPrizeLevel);
+    setGenerating(true);
+    setGenStatus("随机中…");
+
+    // 延迟一帧让「随机中…」先渲染，再做可能较重的循环
+    setTimeout(() => {
+      // 按期数自适应尝试上限：总「期×次」工作量约束在预算内，避免「所有期数」时卡顿
+      const PERIOD_CHECK_BUDGET = 300000;
+      const maxAttempts = Math.max(50, Math.min(20000, Math.ceil(PERIOD_CHECK_BUDGET / Math.max(filteredData.length, 1))));
+      let attempts = 0;
+      let bestTicket: LotteryTicket | null = null;
+      let bestIdx = prizeLevels.length; // 越小越好
+      let hit = false;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        const candidate = generateTicket(type);
+        const fSet = new Set(candidate.front);
+        const bSet = new Set(candidate.back);
+        let candBestIdx = prizeLevels.length;
+        for (let i = 0; i < filteredData.length; i++) {
+          const item = filteredData[i];
+          const fm = item.front_numbers.filter((n) => fSet.has(n)).length;
+          const bm = item.back_numbers.filter((n) => bSet.has(n)).length;
+          const tier = getPrizeTierByMatch(type, fm, bm);
+          if (tier) {
+            const idx = prizeLevels.indexOf(tier.level);
+            if (idx < candBestIdx) candBestIdx = idx;
+            if (candBestIdx <= targetIdx) break; // 已达目标，提前退出
+          }
+        }
+        if (candBestIdx < bestIdx) {
+          bestIdx = candBestIdx;
+          bestTicket = { front: candidate.front, back: candidate.back };
+        }
+        if (candBestIdx <= targetIdx) {
+          hit = true;
+          break;
+        }
+      }
+
+      const finalTicket: LotteryTicket = bestTicket ?? (() => { const t = generateTicket(type); return { front: t.front, back: t.back }; })();
+      setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? finalTicket : ticket)));
+      setGenerating(false);
+      setGenStatus(
+        hit
+          ? `已命中 ${effectiveTargetPrizeLevel}（或更高），共随机 ${attempts} 次`
+          : `未在 ${maxAttempts} 次内命中 ${effectiveTargetPrizeLevel}，已取本次最优：${bestIdx < prizeLevels.length ? prizeLevels[bestIdx] : "未中奖"}`
+      );
+    }, 0);
   };
 
   /** 按套餐票生成：仅大乐透，按选定价位套餐生成全部单式+复式组合，替换当前选号 */
@@ -771,6 +826,70 @@ export default function MatchResultPage() {
               </div>
             )}
 
+            {/* 奖级表：依据官方最新规则，可折叠 */}
+            <div className="card mb-4 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setPrizeTableCollapsed((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-ink-800/40"
+              >
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-gold" />
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{rule.name}奖级表</span>
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400">依据官方最新规则</span>
+                </div>
+                {prizeTableCollapsed ? (
+                  <ChevronDown className="h-4 w-4 text-zinc-500" />
+                ) : (
+                  <ChevronUp className="h-4 w-4 text-zinc-500" />
+                )}
+              </button>
+
+              {!prizeTableCollapsed && (
+                <div className="overflow-x-auto border-t border-ink-700/60">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-ink-900/40 text-zinc-500 dark:text-zinc-400">
+                        <th className="px-3 py-2 text-left font-medium">奖级</th>
+                        <th className="px-3 py-2 text-left font-medium">中奖条件（{rule.frontLabel}+{rule.backLabel}）</th>
+                        <th className="px-3 py-2 text-left font-medium">奖金</th>
+                        <th className="px-3 py-2 text-left font-medium">类型</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-700/60">
+                      {PRIZE_TABLE[type].map((tier) => (
+                        <tr key={tier.level} className="hover:bg-ink-900/30">
+                          <td className="px-3 py-2">
+                            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold",
+                              PRIZE_COLORS[tier.level]?.bg, PRIZE_COLORS[tier.level]?.text)}>
+                              {tier.level}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-zinc-700 dark:text-zinc-200">
+                            {tier.conditions.map((c) => `${c.front}+${c.back}`).join(" / ")}
+                          </td>
+                          <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">
+                            {tier.bonus}
+                            {tier.note && (
+                              <span className="ml-1 text-[10px] text-amber-500">{tier.note}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400">
+                            {tier.kind === "floating" ? "浮动奖" : "固定奖"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {type === "ssq" && (
+                    <div className="border-t border-ink-700/60 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+                      2026 新规：当奖池高于 15 亿元（含）执行特别规定期间，固定奖级增设「福运奖」（命中 3 个红球，即 3+0，单注 5 元），直至奖池资金低于 3 亿元时停止。
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="card p-4 lg:sticky lg:top-4 lg:self-start">
                 <div className="mb-4 flex flex-wrap items-center gap-4">
@@ -951,6 +1070,55 @@ export default function MatchResultPage() {
                   </div>
                 )}
 
+                {/* 随机生成开关：不中指定奖级继续随机 */}
+                <div className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={keepRandomUntilPrize}
+                      disabled={generating}
+                      onClick={() => { setKeepRandomUntilPrize((v) => !v); setGenStatus(null); }}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+                        keepRandomUntilPrize ? "bg-gold" : "bg-ink-600"
+                      )}
+                    >
+                      <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition-transform", keepRandomUntilPrize ? "translate-x-4" : "translate-x-0.5")} />
+                    </button>
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">不中指定奖级继续随机</span>
+                    {keepRandomUntilPrize && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">停止奖级</span>
+                        <select
+                          value={effectiveTargetPrizeLevel}
+                          disabled={generating}
+                          onChange={(e) => { setTargetPrizeLevel(e.target.value); setGenStatus(null); }}
+                          className="rounded-md border border-ink-600 bg-ink-950/60 px-2 py-1 text-xs text-zinc-900 focus:border-indigo focus:outline-none dark:text-zinc-100"
+                        >
+                          {prizeLevels.map((lvl) => (
+                            <option key={lvl} value={lvl}>{lvl}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-400">仅作用于每注「随机」按钮</span>
+                  </div>
+                  {generating ? (
+                    <div className="mt-2 flex items-center gap-1 text-[10px] text-gold">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      随机中…（按期数自适应上限）
+                    </div>
+                  ) : genStatus ? (
+                    <div className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">{genStatus}</div>
+                  ) : null}
+                  {keepRandomUntilPrize && (
+                    <p className="mt-2 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      开启后，点击每注的随机按钮会反复生成号码，直到所选范围内至少有一期中出「停止奖级」或更高奖级为止；一等奖等极小概率奖级可能无法在限定次数内命中。
+                    </p>
+                  )}
+                </div>
+
                 <div className="space-y-4">
                   {customTickets.map((ticket, ticketIdx) => {
                     const complete = isTicketComplete(ticket);
@@ -984,10 +1152,11 @@ export default function MatchResultPage() {
                             <button
                               type="button"
                               onClick={() => handleGenerateTicket(ticketIdx)}
+                              disabled={generating}
                               className="btn btn-sm"
-                              title="随机生成"
+                              title={keepRandomUntilPrize ? `随机至中${effectiveTargetPrizeLevel}（或更高）` : "随机生成"}
                             >
-                              <Shuffle className="h-3 w-3" />
+                              <Shuffle className={cn("h-3 w-3", generating && "animate-pulse")} />
                             </button>
                             {customTickets.length > 1 && (
                               <button
