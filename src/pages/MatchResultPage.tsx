@@ -369,8 +369,8 @@ export default function MatchResultPage() {
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
-  /** 奖级表折叠状态：默认展开，便于直观对照最新规则 */
-  const [prizeTableCollapsed, setPrizeTableCollapsed] = useState(false);
+  /** 奖级表折叠状态：默认折叠，避免在移动端占太多空间 */
+  const [prizeTableCollapsed, setPrizeTableCollapsed] = useState(true);
   /** 「不中指定奖级继续随机」开关 */
   const [keepRandomUntilPrize, setKeepRandomUntilPrize] = useState(false);
   /** 停止奖级（下拉选项与奖级表一致） */
@@ -850,31 +850,31 @@ export default function MatchResultPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-ink-900/40 text-zinc-500 dark:text-zinc-400">
-                        <th className="px-3 py-2 text-left font-medium">奖级</th>
-                        <th className="px-3 py-2 text-left font-medium">中奖条件（{rule.frontLabel}+{rule.backLabel}）</th>
-                        <th className="px-3 py-2 text-left font-medium">奖金</th>
-                        <th className="px-3 py-2 text-left font-medium">类型</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left font-medium">奖级</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left font-medium">中奖条件（{rule.frontLabel}+{rule.backLabel}）</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left font-medium">奖金</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left font-medium">类型</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-ink-700/60">
                       {PRIZE_TABLE[type].map((tier) => (
                         <tr key={tier.level} className="hover:bg-ink-900/30">
                           <td className="px-3 py-2">
-                            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold",
+                            <span className={cn("inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold",
                               PRIZE_COLORS[tier.level]?.bg, PRIZE_COLORS[tier.level]?.text)}>
                               {tier.level}
                             </span>
                           </td>
-                          <td className="px-3 py-2 font-mono text-zinc-700 dark:text-zinc-200">
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-zinc-700 dark:text-zinc-200">
                             {tier.conditions.map((c) => `${c.front}+${c.back}`).join(" / ")}
                           </td>
-                          <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">
+                          <td className="whitespace-nowrap px-3 py-2 text-zinc-700 dark:text-zinc-200">
                             {tier.bonus}
                             {tier.note && (
                               <span className="ml-1 text-[10px] text-amber-500">{tier.note}</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400">
+                          <td className="whitespace-nowrap px-3 py-2 text-zinc-500 dark:text-zinc-400">
                             {tier.kind === "floating" ? "浮动奖" : "固定奖"}
                           </td>
                         </tr>
