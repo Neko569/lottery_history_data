@@ -15,6 +15,50 @@ export interface BallColors {
   to: string;
 }
 
+/** 奖级配色（tailwind class 片段，用于奖级徽章/标签） */
+export interface PrizeColor {
+  bg: string;
+  text: string;
+  border: string;
+}
+
+/** 套餐票组合部件：单式或复式 */
+export interface LotteryPackagePart {
+  /** "single" 单式 / "compound" 复式 */
+  kind: "single" | "compound";
+  /** 前区个数 */
+  front: number;
+  /** 后区个数 */
+  back: number;
+  /** 生成几注（单式为注数，复式为 1 组） */
+  count: number;
+}
+
+/** 套餐票（固定面值组合，如大乐透 18/28/58/88 元套餐） */
+export interface LotteryPackage {
+  id: string;
+  name: string;
+  price: number;
+  parts: LotteryPackagePart[];
+}
+
+/**
+ * 奖级配色共享调色板：按中文奖级名查表。
+ * 一等奖=金色为体彩/福彩通用视觉约定，各彩种共享；新彩种奖级名若不同可在其 prizeColors 自行补充。
+ * 保留八等奖/九等奖以备九级制彩种（如七乐彩）使用。
+ */
+export const PRIZE_LEVEL_COLORS: Record<string, PrizeColor> = {
+  "一等奖": { bg: "bg-gradient-to-r from-yellow-400 to-amber-500", text: "text-yellow-900", border: "border-yellow-400" },
+  "二等奖": { bg: "bg-gradient-to-r from-purple-400 to-fuchsia-500", text: "text-white", border: "border-purple-400" },
+  "三等奖": { bg: "bg-gradient-to-r from-blue-400 to-cyan-500", text: "text-white", border: "border-blue-400" },
+  "四等奖": { bg: "bg-gradient-to-r from-green-400 to-emerald-500", text: "text-white", border: "border-green-400" },
+  "五等奖": { bg: "bg-gradient-to-r from-teal-400 to-cyan-500", text: "text-white", border: "border-teal-400" },
+  "六等奖": { bg: "bg-zinc-500", text: "text-white", border: "border-zinc-500" },
+  "七等奖": { bg: "bg-zinc-600", text: "text-white", border: "border-zinc-600" },
+  "八等奖": { bg: "bg-zinc-700", text: "text-zinc-200", border: "border-zinc-700" },
+  "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
+};
+
 /** 彩种 Logo 配置（驱动 LotteryLogo 统一渲染） */
 export interface LotteryLogoConfig {
   /** 顶部小字（如「超级」「中国」） */
@@ -43,6 +87,12 @@ export interface LotteryConfig {
   backBallColors: BallColors;
   /** Logo 配置（LotteryLogo 渲染用） */
   logo: LotteryLogoConfig;
+  /** 奖级配色（按奖级名查表，通常引用 PRIZE_LEVEL_COLORS） */
+  prizeColors: Record<string, PrizeColor>;
+  /** 套餐票（可选，无则 MatchResultPage 不渲染套餐区） */
+  packages?: LotteryPackage[];
+  /** 奖级表底部新规备注（可选，无则不渲染备注条） */
+  ruleNote?: string;
 }
 
 // 各彩种配置：先以 LotteryConfig 类型注解声明（确保 accent 字面量窄化、数组可变），
@@ -75,6 +125,27 @@ const dltConfig: LotteryConfig = {
   frontBallColors: { from: "#ef4444", to: "#b91c1c" },
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "超级", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#FFD700" },
+  prizeColors: PRIZE_LEVEL_COLORS,
+  packages: [
+    { id: "p18", name: "崭露头角", price: 18, parts: [
+      { kind: "single", front: 5, back: 2, count: 6 },
+      { kind: "compound", front: 5, back: 3, count: 1 },
+    ] },
+    { id: "p28", name: "鱼跃龙门", price: 28, parts: [
+      { kind: "single", front: 5, back: 2, count: 8 },
+      { kind: "compound", front: 6, back: 2, count: 1 },
+    ] },
+    { id: "p58", name: "马到功成", price: 58, parts: [
+      { kind: "single", front: 5, back: 2, count: 8 },
+      { kind: "compound", front: 7, back: 2, count: 1 },
+    ] },
+    { id: "p88", name: "高飞远翔", price: 88, parts: [
+      { kind: "single", front: 5, back: 2, count: 5 },
+      { kind: "compound", front: 6, back: 3, count: 1 },
+      { kind: "compound", front: 7, back: 2, count: 1 },
+    ] },
+  ],
+  ruleNote: "新规：当奖池资金高于 8 亿元（含）时，三~七等奖按更高固定金额派奖（详见各奖级奖金列）。",
 };
 
 /** 双色球配置 */
@@ -102,6 +173,8 @@ const ssqConfig: LotteryConfig = {
   frontBallColors: { from: "#ef4444", to: "#b91c1c" },
   backBallColors: { from: "#3b82f6", to: "#1d4ed8" },
   logo: { topText: "中国", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#3A86FF" },
+  prizeColors: PRIZE_LEVEL_COLORS,
+  ruleNote: "2026 新规：当奖池高于 15 亿元（含）执行特别规定期间，固定奖级增设「福运奖」（命中 3 个红球，即 3+0，单注 5 元），直至奖池资金低于 3 亿元时停止。",
 };
 
 /**

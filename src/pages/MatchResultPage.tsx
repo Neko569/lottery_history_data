@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { LotteryType, RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, LOTTERY_TYPES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch } from "@/utils/lottery";
+import { LOTTERY_RULES, LOTTERY_TYPES, LOTTERIES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, type LotteryPackage } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
 import { isDarkMode } from "@/hooks/useTheme";
@@ -25,79 +25,6 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
 const PICK_GRID_COLS: Record<LotteryType, { front: string; back: string }> = {
   dlt: { front: "grid-cols-7 lg:grid-cols-11", back: "grid-cols-6" },
   ssq: { front: "grid-cols-7 sm:grid-cols-11", back: "grid-cols-8" },
-};
-
-/** 大乐透套餐票组合部件：单式或复式 */
-interface DltPackagePart {
-  /** "single" 单式 5+2 / "compound" 复式 */
-  kind: "single" | "compound";
-  /** 前区个数 */
-  front: number;
-  /** 后区个数 */
-  back: number;
-  /** 生成几注（单式为注数，复式为1组） */
-  count: number;
-}
-
-/** 大乐透套餐票（仅大乐透支持，双色球保持不变）
- *  依据体彩官方四款固定面值套餐：18/28/58/88 元，每款由若干单式 + 复式组合而成 */
-interface DltPackage {
-  id: string;
-  name: string;
-  price: number;
-  parts: DltPackagePart[];
-}
-
-const DLT_PACKAGES: DltPackage[] = [
-  {
-    id: "p18",
-    name: "崭露头角",
-    price: 18,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 6 },
-      { kind: "compound", front: 5, back: 3, count: 1 },
-    ],
-  },
-  {
-    id: "p28",
-    name: "鱼跃龙门",
-    price: 28,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 8 },
-      { kind: "compound", front: 6, back: 2, count: 1 },
-    ],
-  },
-  {
-    id: "p58",
-    name: "马到功成",
-    price: 58,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 8 },
-      { kind: "compound", front: 7, back: 2, count: 1 },
-    ],
-  },
-  {
-    id: "p88",
-    name: "高飞远翔",
-    price: 88,
-    parts: [
-      { kind: "single", front: 5, back: 2, count: 5 },
-      { kind: "compound", front: 6, back: 3, count: 1 },
-      { kind: "compound", front: 7, back: 2, count: 1 },
-    ],
-  },
-];
-
-const PRIZE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "一等奖": { bg: "bg-gradient-to-r from-yellow-400 to-amber-500", text: "text-yellow-900", border: "border-yellow-400" },
-  "二等奖": { bg: "bg-gradient-to-r from-purple-400 to-fuchsia-500", text: "text-white", border: "border-purple-400" },
-  "三等奖": { bg: "bg-gradient-to-r from-blue-400 to-cyan-500", text: "text-white", border: "border-blue-400" },
-  "四等奖": { bg: "bg-gradient-to-r from-green-400 to-emerald-500", text: "text-white", border: "border-green-400" },
-  "五等奖": { bg: "bg-gradient-to-r from-teal-400 to-cyan-500", text: "text-white", border: "border-teal-400" },
-  "六等奖": { bg: "bg-zinc-500", text: "text-white", border: "border-zinc-500" },
-  "七等奖": { bg: "bg-zinc-600", text: "text-white", border: "border-zinc-600" },
-  "八等奖": { bg: "bg-zinc-700", text: "text-zinc-200", border: "border-zinc-700" },
-  "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
 };
 
 /** 导出号码为图片（颜色随当前主题模式变化） */
@@ -366,6 +293,10 @@ export default function MatchResultPage() {
   
   const type = toLotteryType(searchParams.get("type"));
   const ticketsJson = searchParams.get("tickets");
+  // 彩种级配置（由注册表派生，新增彩种自动生效）
+  const lottery = LOTTERIES[type];
+  const PRIZE_COLORS = lottery.prizeColors;
+  const PACKAGES = lottery.packages;
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
@@ -586,8 +517,8 @@ export default function MatchResultPage() {
     }, 0);
   };
 
-  /** 按套餐票生成：仅大乐透，按选定价位套餐生成全部单式+复式组合，替换当前选号 */
-  const handleGeneratePackage = (pkg: DltPackage) => {
+  /** 按套餐票生成：按选定价位套餐生成全部单式+复式组合，替换当前选号 */
+  const handleGeneratePackage = (pkg: LotteryPackage) => {
     const newTickets: LotteryTicket[] = [];
     pkg.parts.forEach((part) => {
       for (let i = 0; i < part.count; i++) {
@@ -871,14 +802,9 @@ export default function MatchResultPage() {
                       ))}
                     </tbody>
                   </table>
-                  {type === "dlt" && (
+                  {lottery.ruleNote && (
                     <div className="border-t border-ink-700/60 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-                      新规：当奖池资金高于 8 亿元（含）时，三~七等奖按更高固定金额派奖（详见各奖级奖金列）。
-                    </div>
-                  )}
-                  {type === "ssq" && (
-                    <div className="border-t border-ink-700/60 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-                      2026 新规：当奖池高于 15 亿元（含）执行特别规定期间，固定奖级增设「福运奖」（命中 3 个红球，即 3+0，单注 5 元），直至奖池资金低于 3 亿元时停止。
+                      {lottery.ruleNote}
                     </div>
                   )}
                 </div>
@@ -1035,7 +961,7 @@ export default function MatchResultPage() {
                         )}
                       </div>
 
-                      {type === "dlt" && (
+                      {PACKAGES && PACKAGES.length > 0 && (
                         <div className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
                     <div className="mb-2 flex items-center gap-2">
                       <Package className="h-3.5 w-3.5 text-gold" />
@@ -1043,7 +969,7 @@ export default function MatchResultPage() {
                       <span className="text-[10px] text-zinc-500 dark:text-zinc-400">点击生成对应价位组合（替换当前选号）</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {DLT_PACKAGES.map((pkg) => (
+                      {PACKAGES.map((pkg) => (
                         <button
                           key={pkg.id}
                           type="button"

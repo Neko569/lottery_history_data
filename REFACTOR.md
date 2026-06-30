@@ -51,7 +51,7 @@
   - 方案：在注册表中为每个彩种提供 logo 配置（渐变色、上行文字、主名、下行号码范围文案），`LotteryLogo` 按 config 渲染统一 SVG 模板。
   - 影响文件：`src/utils/lottery.ts`（注册表扩展）、`src/components/LotteryLogo.tsx`
 
-- [ ] **6. `PRIZE_COLORS` / 套餐票 / 奖级备注 配置化**
+- [x] **6. `PRIZE_COLORS` / 套餐票 / 奖级备注 配置化**
   - 现状：
     - `PRIZE_COLORS` 以中文奖级名（"一等奖"…）为 key，全局共享，无法按彩种区分；且写死了"八等奖/九等奖"等当前两彩种用不到的级别。
     - `DLT_PACKAGES`（大乐透套餐票）硬编码在 `MatchResultPage` 顶层，且用 `type === "dlt"` 控制显隐。
@@ -98,3 +98,4 @@
 - 2026-06-30 完成项 3 — `lotteryStore` 的 `states`/`reqTokens`/`activeLottery` 初值/`fetchAllRemote`/`setPageSize` 全部改为遍历 `LOTTERY_TYPES` 派生，新增彩种自动纳入
 - 2026-06-30 完成项 4 — `SplitView` 遍历 `LOTTERY_TYPES` 渲染面板；`TrendDetail` 删除 `TREND_TYPES` 改用 `LOTTERY_TYPES`；`MatchResultPage` 顶部彩种切换按钮改为遍历渲染、文案取 `rule.name`
 - 2026-06-30 完成项 5 — 注册表新增 `logo`（topText/gradientFrom/gradientTo/rangeColor）配置；`LotteryLogo` 改为按 `LOTTERIES[type].logo` + `rule.name/rule.frontMax/rule.backMax` 统一渲染 SVG，消除 `if (type === "dlt")` 分支；渐变 id 按 type 命名避免同页冲突
+- 2026-06-30 完成项 6 — `PRIZE_COLORS`/`DLT_PACKAGES`/奖级备注从 MatchResultPage 移入注册表：新增 `PrizeColor`/`LotteryPackage`/`LotteryPackagePart` 类型与共享 `PRIZE_LEVEL_COLORS` 调色板；`LotteryConfig` 新增 `prizeColors`/`packages?`/`ruleNote?`；组件内 `const lottery = LOTTERIES[type]` 派生 `PRIZE_COLORS`/`PACKAGES`/`ruleNote`，套餐区与备注条改为按配置有无渲染，消除 `type === "dlt"/"ssq"` 分支
