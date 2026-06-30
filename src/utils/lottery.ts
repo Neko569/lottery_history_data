@@ -1,4 +1,4 @@
-import type { LotteryRule, LotteryType, RandomTicket, PrizeTier } from "@/types/lottery";
+import type { LotteryRule, RandomTicket, PrizeTier } from "@/types/lottery";
 
 // ──────────────────────────────────────────────
 // 彩种注册表（单一数据源）
@@ -100,6 +100,12 @@ export const LOTTERIES = {
 /** 全部彩种 key（顺序与注册表一致） */
 export const LOTTERY_TYPES = Object.keys(LOTTERIES) as LotteryType[];
 
+/**
+ * 彩种类型：从注册表 key 派生。
+ * 新增彩种无需修改此类型，自动包含新 key。
+ */
+export type LotteryType = keyof typeof LOTTERIES;
+
 /** 当前彩种的奖级名称列表（按奖级高低排序，一等奖在最前） */
 export function getPrizeLevels(type: LotteryType): string[] {
   return LOTTERIES[type].prizeTable.map((t) => t.level);
@@ -162,9 +168,9 @@ export function pickNumbers(count: number, max: number): string[] {
     .map(pad2);
 }
 
-/** 运行时校验字符串是否为合法彩种类型 */
+/** 运行时校验字符串是否为合法彩种类型（基于注册表，新增彩种自动识别） */
 export function isLotteryType(value: unknown): value is LotteryType {
-  return value === "dlt" || value === "ssq";
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(LOTTERIES, value);
 }
 
 /** 将任意值安全转为 LotteryType，非法值回退到 fallback（默认 dlt） */

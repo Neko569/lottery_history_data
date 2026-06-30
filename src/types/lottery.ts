@@ -1,7 +1,10 @@
 // 彩票数据类型定义
 
-/** 彩种类型：dlt 大乐透 / ssq 双色球 */
-export type LotteryType = "dlt" | "ssq";
+/**
+ * 彩种类型：从 `LOTTERIES` 注册表派生（见 src/utils/lottery.ts）。
+ * 新增彩种只需在注册表追加条目，此处自动同步，无需手动维护联合类型。
+ */
+export type { LotteryType } from "@/utils/lottery";
 
 /** 单期开奖记录 */
 export interface LotteryItem {
