@@ -29,7 +29,7 @@
 
 ### P1 — Store 动态化
 
-- [ ] **3. `lotteryStore` 中 `states` / `reqTokens` / `fetchAllRemote` 动态化**
+- [x] **3. `lotteryStore` 中 `states` / `reqTokens` / `fetchAllRemote` 动态化**
   - 现状：`states: { dlt: {...}, ssq: {...} }`、`reqTokens: { dlt: 0, ssq: 0 }`、`fetchAllRemote` 内 `Promise.all([fetchRemoteData("dlt"), fetchRemoteData("ssq")])`、`setPageSize` 内 `dlt/ssq` 分别重置页码 —— 全部硬编码两个彩种。
   - 方案：用 `Object.fromEntries(Object.keys(LOTTERIES).map(...))` 初始化 `states` 与 `reqTokens`；`fetchAllRemote` 与 `setPageSize` 改为遍历注册表 key。
   - 影响文件：`src/store/lotteryStore.ts`
@@ -95,3 +95,4 @@
 - 2026-06-30 前置 chore：移除 tsconfig 已弃用的 `baseUrl`（TS 6.0 下阻断类型检查），`paths` 在 `moduleResolution: bundler` 下无需 baseUrl
 - 2026-06-30 完成项 1 — 建立中心化彩种注册表 `LOTTERIES`，`LOTTERY_RULES`/`PRIZE_TABLE`/`REMOTE_JSON_URLS`/`GITEE_CSV_URLS`/`getPrizeLevels`/`getPrizeTierByMatch` 均改为由注册表派生
 - 2026-06-30 完成项 2 — `LotteryType` 改为 `keyof typeof LOTTERIES`（types/lottery.ts 改为 re-export，避免调用方改 import）；`isLotteryType` 改为基于注册表 `hasOwnProperty` 判断
+- 2026-06-30 完成项 3 — `lotteryStore` 的 `states`/`reqTokens`/`activeLottery` 初值/`fetchAllRemote`/`setPageSize` 全部改为遍历 `LOTTERY_TYPES` 派生，新增彩种自动纳入
