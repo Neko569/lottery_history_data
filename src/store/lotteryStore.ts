@@ -45,7 +45,7 @@ const reqTokens: Record<LotteryType, number> = Object.fromEntries(
 /** 单次请求超时时间（毫秒） */
 const FETCH_TIMEOUT = 6000;
 
-/** GitHub JSON 获取失败时的最大重试次数 */
+/** jsDelivr JSON 获取失败时的最大重试次数 */
 const MAX_RETRY = 1;
 
 interface LotteryStore {
@@ -65,7 +65,7 @@ interface LotteryStore {
   setDesktop: (isDesktop: boolean) => void;
 }
 
-/** 带超时的 fetch：先尝试 GitHub JSON，失败后 fallback 到 Gitee CSV */
+/** 带超时的 fetch：先尝试 jsDelivr JSON，失败后 fallback 到 jsDelivr CSV */
 /** 发起单次带超时的 fetch，返回 Response；超时或失败抛异常 */
 /** 发起单次带超时的 fetch，超时或失败抛异常（使用 Promise.race 实现可靠超时） */
 async function fetchOnce(url: string): Promise<Response> {
@@ -78,11 +78,11 @@ async function fetchOnce(url: string): Promise<Response> {
   return res;
 }
 
-/** 带重试的 fetch：先尝试 GitHub JSON（重试 MAX_RETRY 次），全部失败则 fallback 到 Gitee CSV */
+/** 带重试的 fetch：先尝试 jsDelivr JSON（重试 MAX_RETRY 次），全部失败则 fallback 到 jsDelivr CSV */
 async function fetchWithFallback(
   type: LotteryType,
 ): Promise<{ data: LotteryData; source: string }> {
-  // 第 1 步：尝试 GitHub JSON，失败重试最多 MAX_RETRY 次
+  // 第 1 步：尝试 jsDelivr JSON，失败重试最多 MAX_RETRY 次
   let githubLastErr: unknown = null;
   for (let i = 0; i <= MAX_RETRY; i++) {
     try {
@@ -91,23 +91,23 @@ async function fetchWithFallback(
         const text = await res.text();
         const json = JSON.parse(text);
         const data = parseLotteryData(json);
-        return { data, source: "GitHub JSON" };
+        return { data, source: "jsDelivr JSON" };
       }
-      githubLastErr = new Error(`GitHub JSON 请求失败 (${res.status})`);
+      githubLastErr = new Error(`jsDelivr JSON 请求失败 (${res.status})`);
     } catch (err) {
       githubLastErr = err;
     }
   }
 
-  // 第 2 步：GitHub JSON 全部失败，尝试 Gitee CSV（不重试）
+  // 第 2 步：jsDelivr JSON 全部失败，尝试 jsDelivr CSV（不重试）
   try {
     const res = await fetchOnce(GITEE_CSV_URLS[type]);
     if (res.ok) {
       const text = await res.text();
       const data = parseCSVLotteryData(text, type);
-      return { data, source: "Gitee CSV" };
+      return { data, source: "jsDelivr CSV" };
     }
-    throw new Error(`Gitee CSV 请求失败 (${res.status})`);
+    throw new Error(`jsDelivr CSV 请求失败 (${res.status})`);
   } catch (giteeErr) {
     // 第 3 步：两个源都失败，抛出带数据源链接的错误
     const githubMsg =
@@ -123,7 +123,7 @@ async function fetchWithFallback(
           ? (giteeErr as Error).message
           : String(giteeErr);
     throw new Error(
-      `远程数据加载失败：GitHub JSON(${githubMsg})、Gitee CSV(${giteeMsg})`,
+      `远程数据加载失败：jsDelivr JSON(${githubMsg})、jsDelivr CSV(${giteeMsg})`,
     );
   }
 }
