@@ -26,27 +26,20 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
 
 /**
  * 各彩种奖级表（依据官方最新规则）
- *  - 大乐透：共 9 个奖级，一/二等奖为浮动奖，三~九等为固定奖
- *    来源：中国体彩网《超级大乐透游戏规则》第十五条
+ *  - 大乐透：共 7 个奖级，一/二等奖为浮动奖（单期总额封顶 1 亿），三~七等为固定奖
+ *    奖池≥8亿时三~七等固定奖执行更高派奖；来源：中国体彩网《超级大乐透游戏规则》
  *  - 双色球：共 6 个奖级，一/二等奖为浮动奖，三~六等为固定奖
  *    来源：中国福彩《双色球游戏规则》第十六条；2026 新规（26014 期起）一/二等奖单期总额封顶
  */
 export const PRIZE_TABLE: Record<LotteryType, PrizeTier[]> = {
   dlt: [
-    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（封顶 500 万）", kind: "floating" },
-    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（22%，封顶 500 万）", kind: "floating" },
-    { level: "三等奖", conditions: [{ front: 5, back: 0 }], bonus: "10,000 元", kind: "fixed" },
-    { level: "四等奖", conditions: [{ front: 4, back: 2 }], bonus: "3,000 元", kind: "fixed" },
-    { level: "五等奖", conditions: [{ front: 4, back: 1 }], bonus: "300 元", kind: "fixed" },
-    { level: "六等奖", conditions: [{ front: 3, back: 2 }], bonus: "200 元", kind: "fixed" },
-    { level: "七等奖", conditions: [{ front: 4, back: 0 }], bonus: "100 元", kind: "fixed" },
-    { level: "八等奖", conditions: [{ front: 3, back: 1 }, { front: 2, back: 2 }], bonus: "15 元", kind: "fixed" },
-    {
-      level: "九等奖",
-      conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 2 }, { front: 0, back: 2 }],
-      bonus: "5 元",
-      kind: "fixed",
-    },
+    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
+    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
+    { level: "三等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 2 }], bonus: "5,000 元（奖池≥8亿时 6,666 元）", kind: "fixed" },
+    { level: "四等奖", conditions: [{ front: 4, back: 1 }], bonus: "300 元（奖池≥8亿时 380 元）", kind: "fixed" },
+    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 2 }], bonus: "150 元（奖池≥8亿时 200 元）", kind: "fixed" },
+    { level: "六等奖", conditions: [{ front: 3, back: 1 }, { front: 2, back: 2 }], bonus: "15 元（奖池≥8亿时 18 元）", kind: "fixed" },
+    { level: "七等奖", conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 2 }, { front: 0, back: 2 }], bonus: "5 元（奖池≥8亿时 7 元）", kind: "fixed" },
   ],
   ssq: [
     { level: "一等奖", conditions: [{ front: 6, back: 1 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "2026 新规：单期总额封顶 1 亿" },
