@@ -17,7 +17,7 @@
 
 ### P0 — 基础类型与注册表（扩展性根基）
 
-- [ ] **1. 建立中心化彩种注册表 `LOTTERIES`**
+- [x] **1. 建立中心化彩种注册表 `LOTTERIES`**
   - 现状：彩种配置散落在 `LOTTERY_RULES` / `PRIZE_TABLE` / `REMOTE_JSON_URLS` / `GITEE_CSV_URLS` / `DATA_REPO_URLS` 等多个 `Record<LotteryType, ...>` 常量中，新增彩种要在多处补条目，易遗漏。
   - 方案：在 `src/utils/lottery.ts` 新增 `LOTTERIES` 注册表，把上述配置按彩种聚合为单一对象；保留原有导出名作向后兼容别名（由注册表派生），减少调用方改动。
   - 影响文件：`src/utils/lottery.ts`
@@ -92,3 +92,5 @@
 ## 进度记录
 
 （每完成一项在此追加一行：`- YYYY-MM-DD 完成项 N — commit <sha>`）
+- 2026-06-30 前置 chore：移除 tsconfig 已弃用的 `baseUrl`（TS 6.0 下阻断类型检查），`paths` 在 `moduleResolution: bundler` 下无需 baseUrl
+- 2026-06-30 完成项 1 — 建立中心化彩种注册表 `LOTTERIES`，`LOTTERY_RULES`/`PRIZE_TABLE`/`REMOTE_JSON_URLS`/`GITEE_CSV_URLS`/`getPrizeLevels`/`getPrizeTierByMatch` 均改为由注册表派生

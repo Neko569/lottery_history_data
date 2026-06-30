@@ -1,8 +1,43 @@
 import type { LotteryRule, LotteryType, RandomTicket, PrizeTier } from "@/types/lottery";
 
-/** 彩种规则映射 */
-export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
-  dlt: {
+// ──────────────────────────────────────────────
+// 彩种注册表（单一数据源）
+// 新增彩种只需在此追加一条配置，无需改动其它文件。
+// 下方 LOTTERY_RULES / PRIZE_TABLE / REMOTE_JSON_URLS / GITEE_CSV_URLS
+// 均由本注册表派生，保持向后兼容。
+// ──────────────────────────────────────────────
+
+/** 单个号码球渐变配色（用于 canvas 导出图片） */
+export interface BallColors {
+  /** 渐变起始色 */
+  from: string;
+  /** 渐变结束色 */
+  to: string;
+}
+
+/** 彩种完整配置（注册表单条目） */
+export interface LotteryConfig {
+  /** 彩种规则 */
+  rule: LotteryRule;
+  /** 奖级表 */
+  prizeTable: PrizeTier[];
+  /** 远程 JSON 数据地址（GitHub） */
+  remoteJsonUrl: string;
+  /** Gitee 备用 CSV 数据地址 */
+  giteeCsvUrl: string;
+  /** 前区球渐变色（canvas 导出用） */
+  frontBallColors: BallColors;
+  /** 后区球渐变色（canvas 导出用） */
+  backBallColors: BallColors;
+}
+
+// 各彩种配置：先以 LotteryConfig 类型注解声明（确保 accent 字面量窄化、数组可变），
+// 再聚合为 LOTTERIES，使 keyof typeof LOTTERIES 自动派生为 "dlt" | "ssq"。
+// 新增彩种：声明一个 xxxConfig 并加入下方 LOTTERIES 即可。
+
+/** 大乐透配置 */
+const dltConfig: LotteryConfig = {
+  rule: {
     frontCount: 5,
     frontMax: 35,
     backCount: 2,
@@ -12,7 +47,24 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
     backLabel: "后区",
     accent: "crimson",
   },
-  ssq: {
+  prizeTable: [
+    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
+    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
+    { level: "三等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 2 }], bonus: "5,000 元（奖池≥8亿时 6,666 元）", kind: "fixed" },
+    { level: "四等奖", conditions: [{ front: 4, back: 1 }], bonus: "300 元（奖池≥8亿时 380 元）", kind: "fixed" },
+    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 2 }], bonus: "150 元（奖池≥8亿时 200 元）", kind: "fixed" },
+    { level: "六等奖", conditions: [{ front: 3, back: 1 }, { front: 2, back: 2 }], bonus: "15 元（奖池≥8亿时 18 元）", kind: "fixed" },
+    { level: "七等奖", conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 2 }, { front: 0, back: 2 }], bonus: "5 元（奖池≥8亿时 7 元）", kind: "fixed" },
+  ],
+  remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.json",
+  giteeCsvUrl: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/dlt_history.csv",
+  frontBallColors: { from: "#ef4444", to: "#b91c1c" },
+  backBallColors: { from: "#818cf8", to: "#4f46e5" },
+};
+
+/** 双色球配置 */
+const ssqConfig: LotteryConfig = {
+  rule: {
     frontCount: 6,
     frontMax: 33,
     backCount: 1,
@@ -22,7 +74,50 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
     backLabel: "蓝球",
     accent: "indigo",
   },
+  prizeTable: [
+    { level: "一等奖", conditions: [{ front: 6, back: 1 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "2026 新规：单期总额封顶 1 亿" },
+    { level: "二等奖", conditions: [{ front: 6, back: 0 }], bonus: "浮动（30%，封顶 500 万）", kind: "floating", note: "2026 新规：单期封顶 7000 万" },
+    { level: "三等奖", conditions: [{ front: 5, back: 1 }], bonus: "3,000 元", kind: "fixed" },
+    { level: "四等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 1 }], bonus: "200 元", kind: "fixed" },
+    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 1 }], bonus: "10 元", kind: "fixed" },
+    { level: "六等奖", conditions: [{ front: 2, back: 1 }, { front: 1, back: 1 }, { front: 0, back: 1 }], bonus: "5 元", kind: "fixed" },
+  ],
+  remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.json",
+  giteeCsvUrl: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/ssq_history.csv",
+  frontBallColors: { from: "#ef4444", to: "#b91c1c" },
+  backBallColors: { from: "#3b82f6", to: "#1d4ed8" },
 };
+
+/**
+ * 彩种注册表：所有彩种相关配置的唯一数据源
+ *  - 新增彩种：声明一个 `xxxConfig: LotteryConfig` 并加入此对象即可
+ */
+export const LOTTERIES = {
+  dlt: dltConfig,
+  ssq: ssqConfig,
+};
+
+/** 全部彩种 key（顺序与注册表一致） */
+export const LOTTERY_TYPES = Object.keys(LOTTERIES) as LotteryType[];
+
+/** 当前彩种的奖级名称列表（按奖级高低排序，一等奖在最前） */
+export function getPrizeLevels(type: LotteryType): string[] {
+  return LOTTERIES[type].prizeTable.map((t) => t.level);
+}
+
+/** 根据命中数判定奖级；未中奖返回 null */
+export function getPrizeTierByMatch(type: LotteryType, frontMatch: number, backMatch: number): PrizeTier | null {
+  return LOTTERIES[type].prizeTable.find((t) => t.conditions.some((c) => c.front === frontMatch && c.back === backMatch)) ?? null;
+}
+
+// ──────────────────────────────────────────────
+// 以下为向后兼容的派生导出（调用方无需改动）
+// ──────────────────────────────────────────────
+
+/** 彩种规则映射（由注册表派生） */
+export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = Object.fromEntries(
+  LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].rule]),
+) as Record<LotteryType, LotteryRule>;
 
 /**
  * 各彩种奖级表（依据官方最新规则）
@@ -31,49 +126,21 @@ export const LOTTERY_RULES: Record<LotteryType, LotteryRule> = {
  *  - 双色球：共 6 个奖级，一/二等奖为浮动奖，三~六等为固定奖
  *    来源：中国福彩《双色球游戏规则》第十六条；2026 新规（26014 期起）一/二等奖单期总额封顶
  */
-export const PRIZE_TABLE: Record<LotteryType, PrizeTier[]> = {
-  dlt: [
-    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
-    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
-    { level: "三等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 2 }], bonus: "5,000 元（奖池≥8亿时 6,666 元）", kind: "fixed" },
-    { level: "四等奖", conditions: [{ front: 4, back: 1 }], bonus: "300 元（奖池≥8亿时 380 元）", kind: "fixed" },
-    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 2 }], bonus: "150 元（奖池≥8亿时 200 元）", kind: "fixed" },
-    { level: "六等奖", conditions: [{ front: 3, back: 1 }, { front: 2, back: 2 }], bonus: "15 元（奖池≥8亿时 18 元）", kind: "fixed" },
-    { level: "七等奖", conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 2 }, { front: 0, back: 2 }], bonus: "5 元（奖池≥8亿时 7 元）", kind: "fixed" },
-  ],
-  ssq: [
-    { level: "一等奖", conditions: [{ front: 6, back: 1 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "2026 新规：单期总额封顶 1 亿" },
-    { level: "二等奖", conditions: [{ front: 6, back: 0 }], bonus: "浮动（30%，封顶 500 万）", kind: "floating", note: "2026 新规：单期封顶 7000 万" },
-    { level: "三等奖", conditions: [{ front: 5, back: 1 }], bonus: "3,000 元", kind: "fixed" },
-    { level: "四等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 1 }], bonus: "200 元", kind: "fixed" },
-    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 1 }], bonus: "10 元", kind: "fixed" },
-    { level: "六等奖", conditions: [{ front: 2, back: 1 }, { front: 1, back: 1 }, { front: 0, back: 1 }], bonus: "5 元", kind: "fixed" },
-  ],
-};
+export const PRIZE_TABLE: Record<LotteryType, PrizeTier[]> = Object.fromEntries(
+  LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].prizeTable]),
+) as Record<LotteryType, PrizeTier[]>;
 
-/** 当前彩种的奖级名称列表（按奖级高低排序，一等奖在最前） */
-export function getPrizeLevels(type: LotteryType): string[] {
-  return PRIZE_TABLE[type].map((t) => t.level);
-}
+/** 远程数据地址（GitHub JSON，优先使用） — 由注册表派生 */
+export const REMOTE_JSON_URLS: Record<LotteryType, string> = Object.fromEntries(
+  LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].remoteJsonUrl]),
+) as Record<LotteryType, string>;
 
-/** 根据命中数判定奖级；未中奖返回 null */
-export function getPrizeTierByMatch(type: LotteryType, frontMatch: number, backMatch: number): PrizeTier | null {
-  return PRIZE_TABLE[type].find((t) => t.conditions.some((c) => c.front === frontMatch && c.back === backMatch)) ?? null;
-}
+/** Gitee 备用远程数据地址（GitHub JSON 获取失败时的 CSV fallback） — 由注册表派生 */
+export const GITEE_CSV_URLS: Record<LotteryType, string> = Object.fromEntries(
+  LOTTERY_TYPES.map((k) => [k, LOTTERIES[k].giteeCsvUrl]),
+) as Record<LotteryType, string>;
 
-/** 远程数据地址（GitHub JSON，优先使用） */
-export const REMOTE_JSON_URLS: Record<LotteryType, string> = {
-  dlt: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/dlt_history.json",
-  ssq: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/ssq_history.json",
-};
-
-/** Gitee 备用远程数据地址（GitHub JSON 获取失败时的 CSV fallback） */
-export const GITEE_CSV_URLS: Record<LotteryType, string> = {
-  dlt: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/dlt_history.csv",
-  ssq: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/ssq_history.csv",
-};
-
-/** 数据源仓库地址（展示用） */
+/** 数据源仓库地址（展示用，所有彩种共用同一仓库） */
 export const DATA_REPO_URLS = {
   github: "https://github.com/Neko569/get_lottery_data/tree/main/data",
   gitee: "https://gitee.com/retro569/get_lottery_data/tree/main/data",
