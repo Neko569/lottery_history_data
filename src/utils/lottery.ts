@@ -59,6 +59,22 @@ export const PRIZE_LEVEL_COLORS: Record<string, PrizeColor> = {
   "九等奖": { bg: "bg-zinc-800", text: "text-zinc-400", border: "border-zinc-800" },
 };
 
+/**
+ * 彩种主题色样式映射（tailwind class 片段）。
+ * 新增彩种若需新主题色，只需在此追加一条（key 即 LotteryRule.accent 取值），
+ * `Accent` 类型会自动派生，无需改 types/lottery.ts 的联合类型。
+ *  - text / border：主色文本与边框（用于面板头）
+ *  - text400：主色 400 色阶（用于列表前区标签）
+ *  - text400Alt：对比色 400 色阶（用于列表后区标签，与主色互补）
+ */
+export const ACCENT_STYLES = {
+  crimson: { text: "text-crimson", border: "border-crimson/40", text400: "text-crimson-400", text400Alt: "text-indigo-400" },
+  indigo: { text: "text-indigo", border: "border-indigo/40", text400: "text-indigo-400", text400Alt: "text-crimson-400" },
+};
+
+/** 主题色键：从 ACCENT_STYLES 派生，新增主题色只需扩映射表 */
+export type Accent = keyof typeof ACCENT_STYLES;
+
 /** 彩种 Logo 配置（驱动 LotteryLogo 统一渲染） */
 export interface LotteryLogoConfig {
   /** 顶部小字（如「超级」「中国」） */
@@ -93,6 +109,8 @@ export interface LotteryConfig {
   packages?: LotteryPackage[];
   /** 奖级表底部新规备注（可选，无则不渲染备注条） */
   ruleNote?: string;
+  /** 选号网格列数（tailwind grid-cols 类，前/后区各一条） */
+  pickGridCols: { front: string; back: string };
 }
 
 // 各彩种配置：先以 LotteryConfig 类型注解声明（确保 accent 字面量窄化、数组可变），
@@ -146,6 +164,7 @@ const dltConfig: LotteryConfig = {
     ] },
   ],
   ruleNote: "新规：当奖池资金高于 8 亿元（含）时，三~七等奖按更高固定金额派奖（详见各奖级奖金列）。",
+  pickGridCols: { front: "grid-cols-7 lg:grid-cols-11", back: "grid-cols-6" },
 };
 
 /** 双色球配置 */
@@ -175,6 +194,7 @@ const ssqConfig: LotteryConfig = {
   logo: { topText: "中国", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#3A86FF" },
   prizeColors: PRIZE_LEVEL_COLORS,
   ruleNote: "2026 新规：当奖池高于 15 亿元（含）执行特别规定期间，固定奖级增设「福运奖」（命中 3 个红球，即 3+0，单注 5 元），直至奖池资金低于 3 亿元时停止。",
+  pickGridCols: { front: "grid-cols-7 sm:grid-cols-11", back: "grid-cols-8" },
 };
 
 /**

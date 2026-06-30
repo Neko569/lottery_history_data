@@ -17,16 +17,6 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: "all", label: "所有期数" },
 ];
 
-/** 号码选择网格每行列数：保证每行数字数量一致（优先整除）
- *  dlt 前区 35 → 移动端 7 列（5 行整除）；桌面端 11 列（更紧凑，末行 2 个居中）
- *  dlt 后区 12 → 6 列（2 行整除）
- *  ssq 前区 33 → 移动端 7 列；桌面端 11 列（3 行整除）
- *  ssq 后区 16 → 8 列（2 行整除） */
-const PICK_GRID_COLS: Record<LotteryType, { front: string; back: string }> = {
-  dlt: { front: "grid-cols-7 lg:grid-cols-11", back: "grid-cols-6" },
-  ssq: { front: "grid-cols-7 sm:grid-cols-11", back: "grid-cols-8" },
-};
-
 interface LotteryTicket {
   front: string[];
   back: string[];
@@ -939,7 +929,7 @@ export default function MatchResultPage() {
                               {rule.frontLabel} ({ticket.front.length}/{rule.frontMax}，最少{rule.frontCount})
                             </span>
                           </div>
-                          <div className={cn("grid gap-1", PICK_GRID_COLS[type].front)}>
+                          <div className={cn("grid gap-1", lottery.pickGridCols.front)}>
                             {Array.from({ length: rule.frontMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}
@@ -964,7 +954,7 @@ export default function MatchResultPage() {
                               {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
                             </span>
                           </div>
-                          <div className={cn("grid gap-1", PICK_GRID_COLS[type].back)}>
+                          <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
                             {Array.from({ length: rule.backMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}

@@ -68,7 +68,7 @@
 
 ### P3 — 剩余硬编码清理
 
-- [ ] **8. `PICK_GRID_COLS` / `accent` 体系等剩余硬编码清理**
+- [x] **8. `PICK_GRID_COLS` / `accent` 体系等剩余硬编码清理**
   - 现状：
     - `PICK_GRID_COLS: Record<LotteryType, { front: string; back: string }>` 在 `MatchResultPage` 顶层硬编码两彩种网格列数；
     - `LotteryRule.accent: "crimson" | "indigo"` 仅两色，新彩种需扩枚举；
@@ -100,3 +100,4 @@
 - 2026-06-30 完成项 5 — 注册表新增 `logo`（topText/gradientFrom/gradientTo/rangeColor）配置；`LotteryLogo` 改为按 `LOTTERIES[type].logo` + `rule.name/rule.frontMax/rule.backMax` 统一渲染 SVG，消除 `if (type === "dlt")` 分支；渐变 id 按 type 命名避免同页冲突
 - 2026-06-30 完成项 6 — `PRIZE_COLORS`/`DLT_PACKAGES`/奖级备注从 MatchResultPage 移入注册表：新增 `PrizeColor`/`LotteryPackage`/`LotteryPackagePart` 类型与共享 `PRIZE_LEVEL_COLORS` 调色板；`LotteryConfig` 新增 `prizeColors`/`packages?`/`ruleNote?`；组件内 `const lottery = LOTTERIES[type]` 派生 `PRIZE_COLORS`/`PACKAGES`/`ruleNote`，套餐区与备注条改为按配置有无渲染，消除 `type === "dlt"/"ssq"` 分支
 - 2026-06-30 完成项 7 — 新增 `src/utils/exportTickets.ts` 统一 `exportTicketsToImage` + `isCompoundTicket`，前后区球渐变改读 `LOTTERIES[type].frontBallColors/backBallColors`，消除 `isDlt` 与 RandomGenerator 中前区 dead code；RandomGenerator/MatchResultPage 两处重复 `exportAsImage` 删除改为调用 util，包体减小约 2KB
+- 2026-06-30 完成项 8 — `PICK_GRID_COLS` 移入注册表 `pickGridCols`（MatchResultPage 改用 `lottery.pickGridCols`）；新增 `ACCENT_STYLES` 映射表与派生 `Accent` 类型，`LotteryRule.accent` 改为 `Accent`（新增主题色只扩映射表）；`LotteryPanel`/`LotteryList` 的 `rule.accent === "crimson" ? ... : ...` 三元改为查表，消除彩种分支

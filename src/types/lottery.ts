@@ -6,6 +6,11 @@
  */
 export type { LotteryType } from "@/utils/lottery";
 
+// 主题色键：从 ACCENT_STYLES 映射表派生（见 src/utils/lottery.ts）。
+// 本地 import 用于 LotteryRule.accent 字段，同时 re-export 供外部引用。
+import type { Accent } from "@/utils/lottery";
+export type { Accent };
+
 /** 单期开奖记录 */
 export interface LotteryItem {
   /** 期号：大乐透为 string，双色球为 number */
@@ -46,8 +51,8 @@ export interface LotteryRule {
   frontLabel: string;
   /** 后区标签 */
   backLabel: string;
-  /** 主题色 */
-  accent: "crimson" | "indigo";
+  /** 主题色键（取值见 `ACCENT_STYLES`，新增主题色只需扩映射表） */
+  accent: Accent;
 }
 
 /** 随机生成的一注号码 */
