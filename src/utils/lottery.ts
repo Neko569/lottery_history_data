@@ -15,6 +15,18 @@ export interface BallColors {
   to: string;
 }
 
+/** 彩种 Logo 配置（驱动 LotteryLogo 统一渲染） */
+export interface LotteryLogoConfig {
+  /** 顶部小字（如「超级」「中国」） */
+  topText: string;
+  /** 圆形背景渐变起始色 */
+  gradientFrom: string;
+  /** 圆形背景渐变结束色 */
+  gradientTo: string;
+  /** 底部号码范围文案颜色 */
+  rangeColor: string;
+}
+
 /** 彩种完整配置（注册表单条目） */
 export interface LotteryConfig {
   /** 彩种规则 */
@@ -29,6 +41,8 @@ export interface LotteryConfig {
   frontBallColors: BallColors;
   /** 后区球渐变色（canvas 导出用） */
   backBallColors: BallColors;
+  /** Logo 配置（LotteryLogo 渲染用） */
+  logo: LotteryLogoConfig;
 }
 
 // 各彩种配置：先以 LotteryConfig 类型注解声明（确保 accent 字面量窄化、数组可变），
@@ -60,6 +74,7 @@ const dltConfig: LotteryConfig = {
   giteeCsvUrl: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/dlt_history.csv",
   frontBallColors: { from: "#ef4444", to: "#b91c1c" },
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
+  logo: { topText: "超级", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#FFD700" },
 };
 
 /** 双色球配置 */
@@ -86,6 +101,7 @@ const ssqConfig: LotteryConfig = {
   giteeCsvUrl: "https://raw.giteeusercontent.com/retro569/get_lottery_data/raw/main/data/ssq_history.csv",
   frontBallColors: { from: "#ef4444", to: "#b91c1c" },
   backBallColors: { from: "#3b82f6", to: "#1d4ed8" },
+  logo: { topText: "中国", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#3A86FF" },
 };
 
 /**

@@ -46,7 +46,7 @@
 
 ### P2 — 配置驱动的视觉资源
 
-- [ ] **5. `LotteryLogo` 改为配置驱动**
+- [x] **5. `LotteryLogo` 改为配置驱动**
   - 现状：`if (type === "dlt") { <svg>...大乐透... } else { <svg>...双色球... }`，每加一个彩种需手写一个 SVG 分支。
   - 方案：在注册表中为每个彩种提供 logo 配置（渐变色、上行文字、主名、下行号码范围文案），`LotteryLogo` 按 config 渲染统一 SVG 模板。
   - 影响文件：`src/utils/lottery.ts`（注册表扩展）、`src/components/LotteryLogo.tsx`
@@ -97,3 +97,4 @@
 - 2026-06-30 完成项 2 — `LotteryType` 改为 `keyof typeof LOTTERIES`（types/lottery.ts 改为 re-export，避免调用方改 import）；`isLotteryType` 改为基于注册表 `hasOwnProperty` 判断
 - 2026-06-30 完成项 3 — `lotteryStore` 的 `states`/`reqTokens`/`activeLottery` 初值/`fetchAllRemote`/`setPageSize` 全部改为遍历 `LOTTERY_TYPES` 派生，新增彩种自动纳入
 - 2026-06-30 完成项 4 — `SplitView` 遍历 `LOTTERY_TYPES` 渲染面板；`TrendDetail` 删除 `TREND_TYPES` 改用 `LOTTERY_TYPES`；`MatchResultPage` 顶部彩种切换按钮改为遍历渲染、文案取 `rule.name`
+- 2026-06-30 完成项 5 — 注册表新增 `logo`（topText/gradientFrom/gradientTo/rangeColor）配置；`LotteryLogo` 改为按 `LOTTERIES[type].logo` + `rule.name/rule.frontMax/rule.backMax` 统一渲染 SVG，消除 `if (type === "dlt")` 分支；渐变 id 按 type 命名避免同页冲突
