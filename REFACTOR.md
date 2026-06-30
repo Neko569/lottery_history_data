@@ -61,7 +61,7 @@
 
 ### P2 — 导出图片颜色逻辑
 
-- [ ] **7. `exportAsImage` 颜色逻辑改配置驱动，消除 `isDlt` 硬编码**
+- [x] **7. `exportAsImage` 颜色逻辑改配置驱动，消除 `isDlt` 硬编码**
   - 现状：`RandomGenerator.exportAsImage` 与 `MatchResultPage.exportAsImage` 均用 `isDlt = type === "dlt"` 决定前后区球渐变色，且两处 `if (isDlt) {...} else {...}` 前区分支完全相同（dead code）；后区颜色对 dlt/ssq 写死不同色值。
   - 方案：在注册表为每个彩种配置 `frontBallColors` / `backBallColors`（渐变起止色），`exportAsImage` 按 config 取色；顺便消除 dead code。同时两处 `exportAsImage` 重复实现，可抽到 `src/utils/exportTickets.ts` 统一。
   - 影响文件：`src/utils/lottery.ts`、`src/components/RandomGenerator.tsx`、`src/pages/MatchResultPage.tsx`、（可选新增 `src/utils/exportTickets.ts`）
@@ -99,3 +99,4 @@
 - 2026-06-30 完成项 4 — `SplitView` 遍历 `LOTTERY_TYPES` 渲染面板；`TrendDetail` 删除 `TREND_TYPES` 改用 `LOTTERY_TYPES`；`MatchResultPage` 顶部彩种切换按钮改为遍历渲染、文案取 `rule.name`
 - 2026-06-30 完成项 5 — 注册表新增 `logo`（topText/gradientFrom/gradientTo/rangeColor）配置；`LotteryLogo` 改为按 `LOTTERIES[type].logo` + `rule.name/rule.frontMax/rule.backMax` 统一渲染 SVG，消除 `if (type === "dlt")` 分支；渐变 id 按 type 命名避免同页冲突
 - 2026-06-30 完成项 6 — `PRIZE_COLORS`/`DLT_PACKAGES`/奖级备注从 MatchResultPage 移入注册表：新增 `PrizeColor`/`LotteryPackage`/`LotteryPackagePart` 类型与共享 `PRIZE_LEVEL_COLORS` 调色板；`LotteryConfig` 新增 `prizeColors`/`packages?`/`ruleNote?`；组件内 `const lottery = LOTTERIES[type]` 派生 `PRIZE_COLORS`/`PACKAGES`/`ruleNote`，套餐区与备注条改为按配置有无渲染，消除 `type === "dlt"/"ssq"` 分支
+- 2026-06-30 完成项 7 — 新增 `src/utils/exportTickets.ts` 统一 `exportTicketsToImage` + `isCompoundTicket`，前后区球渐变改读 `LOTTERIES[type].frontBallColors/backBallColors`，消除 `isDlt` 与 RandomGenerator 中前区 dead code；RandomGenerator/MatchResultPage 两处重复 `exportAsImage` 删除改为调用 util，包体减小约 2KB

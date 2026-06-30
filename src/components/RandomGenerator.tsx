@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Shuffle, Trash2, ArrowRight, Download } from "lucide-react";
 import type { LotteryType, RandomTicket } from "@/types/lottery";
 import { LOTTERY_RULES, generateTickets } from "@/utils/lottery";
+import { exportTicketsToImage } from "@/utils/exportTickets";
 import LotteryBall from "./LotteryBall";
-import { isDarkMode } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
 interface RandomGeneratorProps {
@@ -12,128 +12,6 @@ interface RandomGeneratorProps {
 }
 
 const COUNT_OPTIONS = [1, 5, 10];
-
-/** 导出号码为图片（颜色随当前主题模式变化） */
-const exportAsImage = (tickets: RandomTicket[], type: LotteryType) => {
-  const rule = LOTTERY_RULES[type];
-  const isDlt = type === "dlt";
-  const dark = isDarkMode();
-  const padding = 40;
-  const ballSize = 36;
-  const ballGap = 8;
-  const rowGap = 20;
-  const separatorWidth = 30;
-  const labelHeight = 60;
-
-  // 主题相关颜色
-  const bgColor = dark ? "#0a0a12" : "#ffffff";
-  const titleColor = dark ? "#f4f4f5" : "#27272a";
-  const indexColor = dark ? "#a1a1aa" : "#71717a";
-  const separatorColor = dark ? "#3a3a4a" : "#d1d1d8";
-
-  // 计算每行球的数量（前区和后区）
-  const frontBalls = rule.frontCount;
-  const backBalls = rule.backCount;
-  const rowHeight = ballSize + rowGap;
-
-  // 计算尺寸：需要容纳前区 + 分隔符 + 后区
-  const totalWidth = padding * 2 + frontBalls * ballSize + (frontBalls - 1) * ballGap + separatorWidth + backBalls * ballSize + (backBalls - 1) * ballGap;
-  const width = totalWidth;
-  const height = labelHeight + tickets.length * rowHeight + padding;
-
-  // 创建 canvas
-  const canvas = document.createElement("canvas");
-  canvas.width = width * 2; // 2x for retina
-  canvas.height = height * 2;
-  const ctx = canvas.getContext("2d")!;
-  ctx.scale(2, 2);
-
-  // 绘制背景
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, width, height);
-
-  // 绘制标题
-  ctx.fillStyle = titleColor;
-  ctx.font = "bold 24px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(rule.name, width / 2, 36);
-
-  // 绘制号码
-  tickets.forEach((ticket, ticketIdx) => {
-    const y = labelHeight + ticketIdx * rowHeight;
-
-    // 前区球
-    ticket.front.forEach((num, i) => {
-      const x = padding + i * (ballSize + ballGap) + ballSize / 2;
-      const ballY = y + ballSize / 2;
-
-      // 绘制渐变球
-      const gradient = ctx.createRadialGradient(x - 3, ballY - 3, 0, x, ballY, ballSize / 2);
-      if (isDlt) {
-        gradient.addColorStop(0, "#ef4444");
-        gradient.addColorStop(1, "#b91c1c");
-      } else {
-        gradient.addColorStop(0, "#ef4444");
-        gradient.addColorStop(1, "#b91c1c");
-      }
-      ctx.beginPath();
-      ctx.arc(x, ballY, ballSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
-
-      // 绘制数字
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 16px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(num, x, ballY);
-    });
-
-    // 分隔符
-    const separatorX = padding + frontBalls * (ballSize + ballGap) - ballGap / 2;
-    ctx.fillStyle = separatorColor;
-    ctx.fillRect(separatorX, y + 8, 2, ballSize - 16);
-
-    // 后区球
-    ticket.back.forEach((num, i) => {
-      const x = separatorX + separatorWidth + i * (ballSize + ballGap) + ballSize / 2;
-      const ballY = y + ballSize / 2;
-
-      // 绘制渐变球
-      const gradient = ctx.createRadialGradient(x - 3, ballY - 3, 0, x, ballY, ballSize / 2);
-      if (isDlt) {
-        gradient.addColorStop(0, "#818cf8");
-        gradient.addColorStop(1, "#4f46e5");
-      } else {
-        gradient.addColorStop(0, "#3b82f6");
-        gradient.addColorStop(1, "#1d4ed8");
-      }
-      ctx.beginPath();
-      ctx.arc(x, ballY, ballSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
-
-      // 绘制数字
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 16px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(num, x, ballY);
-    });
-
-    // 期号
-    ctx.fillStyle = indexColor;
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(`${ticketIdx + 1}`, 8, y + ballSize / 2 + 4);
-  });
-
-  // 导出
-  const link = document.createElement("a");
-  link.download = `${type}-${Date.now()}.png`;
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-};
 
 /** 随机号码生成器 */
 export default function RandomGenerator({ type }: RandomGeneratorProps) {
@@ -154,7 +32,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
   };
 
   const handleExport = () => {
-    exportAsImage(tickets, type);
+    exportTicketsToImage(tickets, type);
   };
 
   return (
