@@ -51,7 +51,7 @@
 
 ### P2 — 健壮性 / 可维护性
 
-- [ ] **5. LotteryList 列表 key 含 index，弱化 reconciliation**
+- [x] **5. LotteryList 列表 key 含 index，弱化 reconciliation**
   - 现状：`src/components/LotteryList.tsx:84` `key={`${item.term}-${idx}`}`，`item.term` 已唯一，拼接 index 反而阻碍 React 复用。
   - 方案：改为 `key={String(item.term)}`。
   - 影响文件：`src/components/LotteryList.tsx`
@@ -78,3 +78,4 @@
 - 2026-06-30 完成项 2 — lotteryStore `fetchRemoteData` 解构去掉未使用的 `source`，消除 ESLint error
 - 2026-06-30 完成项 3 — `prizeLevels`/`getPrizeLevel`/`calculateMatches`/`totalMatches` 全部 memo 化；列表渲染复用 `totalMatches[ticketIdx]` 与 `m.prize`，删除二次 `calculateMatches` 与重算 `getPrizeLevel`；顺带消除 exhaustive-deps 警告，ESLint 归零
 - 2026-06-30 完成项 4 — MatchResultPage 加 `useEffect`，深链接 `/match?type=xxx` 无数据时自动 `fetchRemoteData`，与 TrendDetail 行为对齐
+- 2026-06-30 完成项 5 — LotteryList 行 key 由 `${item.term}-${idx}` 改为 `String(item.term)`，`idx` 仅保留用于斑马纹

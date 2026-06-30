@@ -81,7 +81,7 @@ export default function LotteryList({
         {/* 数据行 */}
         {pageItems.map((item, idx) => (
           <div
-            key={`${item.term}-${idx}`}
+            key={String(item.term)}
             className={cn(
               "flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-ink-800/60",
               idx % 2 === 1 && "bg-ink-900/30",
