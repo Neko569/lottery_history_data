@@ -56,7 +56,7 @@
   - 方案：改为 `key={String(item.term)}`。
   - 影响文件：`src/components/LotteryList.tsx`
 
-- [ ] **6. `pickNumbers` 缺 `count > max` 防御，配置错误时无限循环**
+- [x] **6. `pickNumbers` 缺 `count > max` 防御，配置错误时无限循环**
   - 现状：`src/utils/lottery.ts` `while (pool.size < count)` 在 `[1,max]` 抽 `count` 个不重复号；若调用方误传 `count > max`，`Set` 永远凑不齐，死循环卡死页面。
   - 方案：函数入口 clamp `count = Math.min(count, max)`，并在 `count <= 0` 时直接返回 `[]`。
   - 影响文件：`src/utils/lottery.ts`
@@ -79,3 +79,4 @@
 - 2026-06-30 完成项 3 — `prizeLevels`/`getPrizeLevel`/`calculateMatches`/`totalMatches` 全部 memo 化；列表渲染复用 `totalMatches[ticketIdx]` 与 `m.prize`，删除二次 `calculateMatches` 与重算 `getPrizeLevel`；顺带消除 exhaustive-deps 警告，ESLint 归零
 - 2026-06-30 完成项 4 — MatchResultPage 加 `useEffect`，深链接 `/match?type=xxx` 无数据时自动 `fetchRemoteData`，与 TrendDetail 行为对齐
 - 2026-06-30 完成项 5 — LotteryList 行 key 由 `${item.term}-${idx}` 改为 `String(item.term)`，`idx` 仅保留用于斑马纹
+- 2026-06-30 完成项 6 — `pickNumbers` 入口 clamp `count` 至 `[0, max]`，`count <= 0` 返回 `[]`，杜绝 `count > max` 时的无限循环
