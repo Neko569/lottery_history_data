@@ -253,6 +253,10 @@ export default function MatchResultPage() {
   const calculateMatches = useCallback((ticket: LotteryTicket) => {
     const filteredData = getFilteredData();
     if (filteredData.length === 0) return { total: 0, matches: [], maxMatch: 0, prizeLevel: null };
+    // 未选号不计奖：快乐八七等奖为「全不中(0中)」，空票会误命中，需跳过
+    if (ticket.front.length === 0 && ticket.back.length === 0) {
+      return { total: 0, matches: [], maxMatch: 0, prizeLevel: null };
+    }
 
     const results = filteredData.map((item) => {
       // 按位彩种逐位对位比较；普通彩种集合交集（matchTicket 内部区分）
