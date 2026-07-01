@@ -51,8 +51,19 @@ export default function TrendDetail() {
     <div className="min-h-screen">
       <div className="border-b border-ink-700/60 bg-ink-950/40">
         <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6">
-          {/* 第一行：大分类（体育彩票 / 福利彩票） */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* 第一行：页面标题（独占一行，避免与下方彩种选择挤在同一行导致换行） */}
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
+              {rule.name} · 完整号码走势
+            </h1>
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+              {rule.frontLabel} 1-{rule.frontMax}
+              {backDrawTotal > 0 && ` · ${rule.backLabel} 1-${rule.backMax}`}
+            </p>
+          </div>
+
+          {/* 第二行：大分类（体育彩票 / 福利彩票），与主页一致 */}
+          <div className="mt-2">
             <div className="seg">
               {LOTTERY_CATEGORIES.map((cat) => (
                 <button
@@ -68,18 +79,9 @@ export default function TrendDetail() {
                 </button>
               ))}
             </div>
-            <div className="ml-auto leading-tight text-right">
-              <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                {rule.name} · 完整号码走势
-              </h1>
-              <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                {rule.frontLabel} 1-{rule.frontMax}
-                {backDrawTotal > 0 && ` · ${rule.backLabel} 1-${rule.backMax}`}
-              </p>
-            </div>
           </div>
 
-          {/* 第二行：具体彩种（与主页一致的 LotterySelector） */}
+          {/* 第三行：具体彩种（与主页一致的 LotterySelector） */}
           <div className="mt-2">
             <LotterySelector
               lotteries={categoryLotteries}
