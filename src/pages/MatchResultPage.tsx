@@ -33,6 +33,7 @@ const normalizeNumberGroup = (
   str: string,
   label: string,
   max: number,
+  min: number = 1,
 ): { nums: string[]; error?: string } => {
   const tokens = str
     .split(/[\s,，、;；]+/)
@@ -41,8 +42,8 @@ const normalizeNumberGroup = (
   const nums: string[] = [];
   for (const tok of tokens) {
     const n = parseInt(tok, 10);
-    if (Number.isNaN(n) || n < 1 || n > max) {
-      return { nums: [], error: `${label}号码 "${tok}" 不合法（应在 1-${max} 之间）` };
+    if (Number.isNaN(n) || n < min || n > max) {
+      return { nums: [], error: `${label}号码 "${tok}" 不合法（应在 ${min}-${max} 之间）` };
     }
     nums.push(String(n).padStart(2, "0"));
   }
@@ -55,10 +56,12 @@ const normalizeNumberGroup = (
  *  - "04,06,07,33,34,05,08"      （逗号/空格分隔，无 + 时按 frontCount 拆分前后区，仅适用单式）
  * 单个位号码可不补零（如 4 6 7 33 34 + 5 8）。
  */
-const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax: number; backCount: number; backMax: number; frontLabel: string; backLabel: string }): ParseResult => {
+const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax: number; frontMin?: number; backCount: number; backMax: number; backMin?: number; frontLabel: string; backLabel: string }): ParseResult => {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   const tickets: LotteryTicket[] = [];
   const errors: string[] = [];
+  const frontMin = rule.frontMin ?? 1;
+  const backMin = rule.backMin ?? 1;
 
   lines.forEach((line, idx) => {
     const lineNo = idx + 1;
@@ -66,12 +69,12 @@ const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax
 
     if (plusMatch) {
       const [frontPart, backPart] = line.split("+");
-      const frontRes = normalizeNumberGroup(frontPart, rule.frontLabel, rule.frontMax);
+      const frontRes = normalizeNumberGroup(frontPart, rule.frontLabel, rule.frontMax, frontMin);
       if (frontRes.error) {
         errors.push(`第${lineNo}行: ${frontRes.error}`);
         return;
       }
-      const backRes = normalizeNumberGroup(backPart, rule.backLabel, rule.backMax);
+      const backRes = normalizeNumberGroup(backPart, rule.backLabel, rule.backMax, backMin);
       if (backRes.error) {
         errors.push(`第${lineNo}行: ${backRes.error}`);
         return;
@@ -96,12 +99,12 @@ const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax
       }
       const frontTokens = tokens.slice(0, rule.frontCount);
       const backTokens = tokens.slice(rule.frontCount);
-      const frontRes = normalizeNumberGroup(frontTokens.join(" "), rule.frontLabel, rule.frontMax);
+      const frontRes = normalizeNumberGroup(frontTokens.join(" "), rule.frontLabel, rule.frontMax, frontMin);
       if (frontRes.error) {
         errors.push(`第${lineNo}行: ${frontRes.error}`);
         return;
       }
-      const backRes = normalizeNumberGroup(backTokens.join(" "), rule.backLabel, rule.backMax);
+      const backRes = normalizeNumberGroup(backTokens.join(" "), rule.backLabel, rule.backMax, backMin);
       if (backRes.error) {
         errors.push(`第${lineNo}行: ${backRes.error}`);
         return;
@@ -172,6 +175,9 @@ export default function MatchResultPage() {
   });
   
   const rule = LOTTERY_RULES[type];
+  const frontMin = rule.frontMin ?? 1;
+  const backMin = rule.backMin ?? 1;
+  const hasBack = rule.backCount > 0;
   /** 当前彩种奖级顺序（一等奖在前），用于排序与「随机到指定奖级」下拉 */
   const prizeLevels = useMemo(() => getPrizeLevels(type), [type]);
   /** 生效的停止奖级：切换彩种时若原值不适用则回退到最低奖级 */
@@ -731,7 +737,7 @@ export default function MatchResultPage() {
                                 setImportText(e.target.value);
                                 if (importErrors.length > 0) setImportErrors([]);
                               }}
-                              placeholder={`每行一注，支持以下格式：\n${Array.from({ length: rule.frontCount }, (_, i) => i + 1).join(" ")} + ${Array.from({ length: rule.backCount }, (_, i) => rule.frontCount + i + 1).join(" ")}\n${Array.from({ length: rule.frontCount + rule.backCount }, (_, i) => i + 1).join(",")}`}
+                              placeholder={`每行一注，支持以下格式：\n${hasBack ? `${Array.from({ length: rule.frontCount }, (_, i) => i + frontMin).join(" ")} + ${Array.from({ length: rule.backCount }, (_, i) => i + backMin).join(" ")}` : Array.from({ length: rule.frontCount }, (_, i) => i + frontMin).join(" ")}\n${Array.from({ length: rule.frontCount + rule.backCount }, (_, i) => i + frontMin).join(",")}`}
                               rows={6}
                               className="w-full resize-y rounded-lg border border-ink-600 bg-ink-950/60 px-3 py-2 font-mono text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo dark:text-zinc-100 dark:placeholder:text-zinc-500"
                             />
@@ -771,7 +777,7 @@ export default function MatchResultPage() {
                                 清空文本
                               </button>
                               <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-400">
-                                {rule.frontCount}个{rule.frontLabel} + {rule.backCount}个{rule.backLabel} 为一注
+                                {hasBack ? `${rule.frontCount}个${rule.frontLabel} + ${rule.backCount}个${rule.backLabel} 为一注` : `${rule.frontCount}个${rule.frontLabel} 为一注`}
                               </span>
                             </div>
 
@@ -794,9 +800,9 @@ export default function MatchResultPage() {
 
                             <div className="rounded-lg bg-ink-950/40 px-3 py-2 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
                               <div className="mb-1 font-medium text-zinc-400 dark:text-zinc-300">格式说明</div>
-                              <div>· 用 <span className="font-mono text-zinc-300">+</span> 分隔前后区，支持复式（如 5+3）</div>
-                              <div>· 无 <span className="font-mono text-zinc-300">+</span> 时按前{rule.frontCount}个为{rule.frontLabel}、其余为{rule.backLabel}自动拆分（仅单式）</div>
-                              <div>· 分隔符支持空格、逗号、顿号；号码范围 {rule.frontLabel} 1-{rule.frontMax}，{rule.backLabel} 1-{rule.backMax}</div>
+                              {hasBack && <div>· 用 <span className="font-mono text-zinc-300">+</span> 分隔前后区，支持复式（如 5+3）</div>}
+                              <div>· 无 <span className="font-mono text-zinc-300">+</span> 时按前{rule.frontCount}个为{rule.frontLabel}{hasBack ? `、其余为${rule.backLabel}` : ""}自动拆分（仅单式）</div>
+                              <div>· 分隔符支持空格、逗号、顿号；号码范围 {rule.frontLabel} {frontMin}-{rule.frontMax}{hasBack ? `，${rule.backLabel} ${backMin}-${rule.backMax}` : ""}</div>
                             </div>
                           </div>
                         )}
@@ -906,7 +912,7 @@ export default function MatchResultPage() {
                               </span>
                             ) : (
                               <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                请选择至少{rule.frontCount}个{rule.frontLabel}和至少{rule.backCount}个{rule.backLabel}
+                                请选择至少{rule.frontCount}个{rule.frontLabel}{hasBack ? `和至少${rule.backCount}个${rule.backLabel}` : ""}
                               </span>
                             )}
                           </div>
@@ -939,7 +945,7 @@ export default function MatchResultPage() {
                             </span>
                           </div>
                           <div className={cn("grid gap-1", lottery.pickGridCols.front)}>
-                            {Array.from({ length: rule.frontMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
+                            {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => String(i + frontMin).padStart(2, "0")).map((num) => (
                               <button
                                 key={num}
                                 type="button"
@@ -957,30 +963,32 @@ export default function MatchResultPage() {
                           </div>
                         </div>
 
-                        <div>
-                          <div className="mb-2 flex items-center gap-2">
-                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
-                            </span>
+                        {hasBack && (
+                          <div>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
+                              </span>
+                            </div>
+                            <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
+                              {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => String(i + backMin).padStart(2, "0")).map((num) => (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  className={cn(
+                                    "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
+                                    ticket.back.includes(num)
+                                      ? "bg-indigo text-white"
+                                      : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
+                                  )}
+                                  onClick={() => handleToggleNumber(ticketIdx, "back", num)}
+                                >
+                                  {Number(num)}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
-                            {Array.from({ length: rule.backMax }, (_, i) => String(i + 1).padStart(2, "0")).map((num) => (
-                              <button
-                                key={num}
-                                type="button"
-                                className={cn(
-                                  "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
-                                  ticket.back.includes(num)
-                                    ? "bg-indigo text-white"
-                                    : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
-                                )}
-                                onClick={() => handleToggleNumber(ticketIdx, "back", num)}
-                              >
-                                {Number(num)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1026,7 +1034,7 @@ export default function MatchResultPage() {
                   <BarChart3 className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
                   <p className="text-zinc-500 dark:text-zinc-400 mb-2">请先选择完整的号码</p>
                   <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                    选完 {rule.frontCount} 个{rule.frontLabel}和 {rule.backCount} 个{rule.backLabel}后自动开始对比
+                    选完 {rule.frontCount} 个{rule.frontLabel}{hasBack ? `和 ${rule.backCount} 个${rule.backLabel}` : ""}后自动开始对比
                   </p>
                 </div>
               ) : (
@@ -1123,7 +1131,7 @@ export default function MatchResultPage() {
                             {ticket.front.map((n, i) => (
                               <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
                             ))}
-                            <span className="mx-1 h-3 w-px bg-ink-600" />
+                            {hasBack && <span className="mx-1 h-3 w-px bg-ink-600" />}
                             {ticket.back.map((n, i) => (
                               <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
                             ))}
@@ -1150,12 +1158,14 @@ export default function MatchResultPage() {
                                     <div className="flex items-center gap-2">
                                       <span className={cn("rounded-md px-2 py-0.5 text-xs",
                                         m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
-                                        前{m.frontMatch}
+                                        {rule.frontLabel}{m.frontMatch}
                                       </span>
-                                      <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                        m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
-                                        后{m.backMatch}
-                                      </span>
+                                      {hasBack && (
+                                        <span className={cn("rounded-md px-2 py-0.5 text-xs",
+                                          m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
+                                          {rule.backLabel}{m.backMatch}
+                                        </span>
+                                      )}
                                     </div>
                                     {prize && (
                                       <span className={cn("font-bold text-sm px-2 py-0.5 rounded", prize.bg, prize.text)}>
@@ -1174,7 +1184,7 @@ export default function MatchResultPage() {
                                       highlight={ticket.front.includes(n)}
                                     />
                                   ))}
-                                  <span className="mx-2 h-3 w-px bg-ink-600" />
+                                  {hasBack && <span className="mx-2 h-3 w-px bg-ink-600" />}
                                   {item.back_numbers.map((n, ni) => (
                                     <LotteryBall
                                       key={`bn-${ni}`}

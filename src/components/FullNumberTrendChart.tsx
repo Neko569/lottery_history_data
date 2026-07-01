@@ -65,9 +65,13 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
   };
 
   const maxNum = area === "front" ? rule.frontMax : rule.backMax;
-  const count = area === "front" ? rule.frontCount : rule.backCount;
+  const minNum = area === "front" ? (rule.frontMin ?? 1) : (rule.backMin ?? 1);
+  const count = area === "front"
+    ? (rule.frontDrawCount ?? rule.frontCount)
+    : (rule.backDrawCount ?? rule.backCount);
+  const hasBack = rule.backCount > 0;
   const label = area === "front" ? rule.frontLabel : rule.backLabel;
-  const midValue = Math.floor(maxNum / 2) + 1;
+  const midValue = Math.floor((minNum + maxNum) / 2) + 1;
 
   const chartData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
@@ -89,7 +93,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
           row[`p${i + 1}`] = numValues[i] || 0;
         }
       } else if (trendType === "miss") {
-        for (let n = 1; n <= maxNum; n++) {
+        for (let n = minNum; n <= maxNum; n++) {
           if (nums.includes(String(n).padStart(2, "0"))) {
             missCount[n] = 0;
             row[`m${n}`] = 0;
@@ -121,7 +125,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
 
       return row;
     });
-  }, [data, period, area, maxNum, count, trendType, midValue]);
+  }, [data, period, area, maxNum, minNum, count, trendType, midValue]);
 
   const heatmapData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
@@ -129,27 +133,27 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
     return sliced.map((item, idx) => {
       const nums = area === "front" ? item.front_numbers : item.back_numbers;
       const row: Record<string, number | string> = { term: String(item.term), index: idx };
-      for (let n = 1; n <= maxNum; n++) {
+      for (let n = minNum; n <= maxNum; n++) {
         row[`n${n}`] = nums.includes(String(n).padStart(2, "0")) ? 1 : 0;
       }
       return row;
     });
-  }, [data, period, area, maxNum]);
+  }, [data, period, area, maxNum, minNum]);
 
   const missData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
     const currentMiss: Record<number, number> = {};
-    for (let n = 1; n <= maxNum; n++) {
+    for (let n = minNum; n <= maxNum; n++) {
       currentMiss[n] = 0;
     }
     const result: Record<number, number> = {};
-    for (let n = 1; n <= maxNum; n++) {
+    for (let n = minNum; n <= maxNum; n++) {
       result[n] = 0;
     }
     const items = data.items.slice(0, period);
     for (let i = items.length - 1; i >= 0; i--) {
       const nums = area === "front" ? items[i].front_numbers : items[i].back_numbers;
-      for (let n = 1; n <= maxNum; n++) {
+      for (let n = minNum; n <= maxNum; n++) {
         if (nums.includes(String(n).padStart(2, "0"))) {
           currentMiss[n] = 0;
         } else {
@@ -157,25 +161,25 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
         }
       }
     }
-    for (let n = 1; n <= maxNum; n++) {
+    for (let n = minNum; n <= maxNum; n++) {
       result[n] = currentMiss[n];
     }
     return Object.entries(result).map(([num, miss]) => ({
       num: Number(num),
       miss: miss as number,
     }));
-  }, [data, period, area, maxNum]);
+  }, [data, period, area, maxNum, minNum]);
 
   const frequencyData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
     const sliced = data.items.slice(0, period);
     const freq: Record<number, number> = {};
-    for (let n = 1; n <= maxNum; n++) {
+    for (let n = minNum; n <= maxNum; n++) {
       freq[n] = 0;
     }
     sliced.forEach((item) => {
       const nums = area === "front" ? item.front_numbers : item.back_numbers;
-      for (let n = 1; n <= maxNum; n++) {
+      for (let n = minNum; n <= maxNum; n++) {
         if (nums.includes(String(n).padStart(2, "0"))) {
           freq[n]++;
         }
@@ -186,7 +190,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       count,
       rate: ((count / period) * 100).toFixed(1),
     }));
-  }, [data, period, area, maxNum]);
+  }, [data, period, area, maxNum, minNum]);
 
   const getChartLines = () => {
     // 数据点描边色：与所在卡片背景形成对比，避免点融入背景
@@ -209,7 +213,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
         );
       });
     } else if (trendType === "miss") {
-      const displayNums = selectedNumbers.length > 0 ? selectedNumbers : Array.from({ length: Math.min(6, maxNum) }, (_, i) => i + 1);
+      const displayNums = selectedNumbers.length > 0 ? selectedNumbers : Array.from({ length: Math.min(6, maxNum - minNum + 1) }, (_, i) => i + minNum);
       return displayNums.map((num, i) => {
         const color = PALETTE[i % PALETTE.length];
         return (
@@ -250,9 +254,9 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
   };
 
   const getYAxisDomain = () => {
-    if (trendType === "position") return [1, maxNum] as [number, number];
+    if (trendType === "position") return [minNum, maxNum] as [number, number];
     if (trendType === "miss") return [0, Math.max(10, period)] as [number, number];
-    if (trendType === "sum") return [count, count * maxNum] as [number, number];
+    if (trendType === "sum") return [count * minNum, count * maxNum] as [number, number];
     return [0, count] as [number, number];
   };
 
@@ -268,29 +272,33 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       <div className="card p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="seg">
-              <button
-                type="button"
-                className={cn("seg-item", area === "front" && "seg-item-active")}
-                onClick={() => {
-                  setArea("front");
-                  setSelectedNumbers([]);
-                }}
-              >
-                {rule.frontLabel}
-              </button>
-              <button
-                type="button"
-                className={cn("seg-item", area === "back" && "seg-item-active")}
-                onClick={() => {
-                  setArea("back");
-                  setSelectedNumbers([]);
-                }}
-              >
-                {rule.backLabel}
-              </button>
-            </div>
-            <div className="h-4 w-px bg-zinc-300" />
+            {hasBack && (
+              <>
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={cn("seg-item", area === "front" && "seg-item-active")}
+                    onClick={() => {
+                      setArea("front");
+                      setSelectedNumbers([]);
+                    }}
+                  >
+                    {rule.frontLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className={cn("seg-item", area === "back" && "seg-item-active")}
+                    onClick={() => {
+                      setArea("back");
+                      setSelectedNumbers([]);
+                    }}
+                  >
+                    {rule.backLabel}
+                  </button>
+                </div>
+                <div className="h-4 w-px bg-zinc-300" />
+              </>
+            )}
             <div className="seg flex flex-wrap sm:inline-flex">
               {(Object.keys(TREND_TYPE_LABELS) as TrendType[]).map((t) => (
                 <button
@@ -331,7 +339,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {Array.from({ length: maxNum }, (_, i) => i + 1).map((num) => (
+            {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((num) => (
               <button
                 key={num}
                 type="button"
@@ -401,7 +409,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
               {/* 号码列标题 */}
               <div className="flex items-center gap-1 mb-1">
                 <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-400 dark:text-zinc-500">期号</span>
-                {Array.from({ length: maxNum }, (_, i) => i + 1).map((n) => (
+                {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((n) => (
                   <div
                     key={n}
                     className="flex-1 text-center text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400"
@@ -417,7 +425,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
                     <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-500 dark:text-zinc-400">
                       {(row.term as string).slice(-3)}
                     </span>
-                    {Array.from({ length: maxNum }, (_, i) => i + 1).map((n) => (
+                    {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((n) => (
                       <div
                         key={n}
                         className={cn(

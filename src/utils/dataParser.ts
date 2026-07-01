@@ -93,8 +93,12 @@ export function parseLotteryText(text: string, type: string): LotteryData {
 /** 规整单条记录，确保字段类型正确 */
 function normalizeItem(raw: unknown): LotteryItem {
   const obj = (raw ?? {}) as Record<string, unknown>;
-  const front = toStringArray(obj.front_numbers);
-  const back = toStringArray(obj.back_numbers);
+  let front = toStringArray(obj.front_numbers);
+  let back = toStringArray(obj.back_numbers);
+  // 部分彩种（七星彩/排列三/排列五/福彩3D/快乐八）数据仅含 numbers 字段，回退到前区
+  if (front.length === 0 && back.length === 0) {
+    front = toStringArray(obj.numbers);
+  }
   return {
     term: (obj.term as string | number) ?? "",
     draw_time: typeof obj.draw_time === "string" ? obj.draw_time : "",
@@ -104,9 +108,13 @@ function normalizeItem(raw: unknown): LotteryItem {
   };
 }
 
+/** 将值转为字符串数组，并统一补零为 2 位（保证选号与开奖号码格式一致以正确匹配） */
 function toStringArray(val: unknown): string[] {
   if (Array.isArray(val)) {
-    return val.map((v) => (typeof v === "number" ? String(v) : String(v ?? "")));
+    return val.map((v) => {
+      const s = typeof v === "number" ? String(v) : String(v ?? "");
+      return s.padStart(2, "0");
+    });
   }
   return [];
 }
@@ -168,12 +176,12 @@ function parseCSVLine(line: string): string[] {
 }
 
 /** 解析 Python 列表字符串，如 "['04', '05', '15']" 或 ['05]
- *  提取所有单引号包裹的片段，返回字符串数组
+ *  提取所有单引号包裹的片段，返回补零为 2 位的字符串数组
  */
 function parsePythonList(str: string): string[] {
   const matches = str.match(/'([^']+)'/g);
   if (matches) {
-    return matches.map((m) => m.slice(1, -1));
+    return matches.map((m) => m.slice(1, -1).padStart(2, "0"));
   }
   return [];
 }

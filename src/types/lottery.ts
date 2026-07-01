@@ -37,14 +37,22 @@ export interface LotteryData {
 
 /** 彩种规则配置 */
 export interface LotteryRule {
-  /** 前区/红球个数 */
+  /** 前区/红球个数（玩家选号个数） */
   frontCount: number;
   /** 前区/红球号码范围上限 */
   frontMax: number;
+  /** 前区/红球号码范围下限（默认 1，0-9 数字型彩种设为 0） */
+  frontMin?: number;
+  /** 前区实际开奖个数（默认等于 frontCount，如快乐八玩家选 10 但开奖 20） */
+  frontDrawCount?: number;
   /** 后区/蓝球个数 */
   backCount: number;
   /** 后区/蓝球号码范围上限 */
   backMax: number;
+  /** 后区/蓝球号码范围下限（默认 1） */
+  backMin?: number;
+  /** 后区实际开奖个数（默认等于 backCount） */
+  backDrawCount?: number;
   /** 彩种中文名 */
   name: string;
   /** 前区标签 */

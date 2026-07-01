@@ -44,7 +44,7 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
             随机生成
           </h3>
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            {rule.frontCount}+{rule.backCount}
+            {rule.frontCount}{rule.backCount > 0 ? `+${rule.backCount}` : ""}
           </span>
         </div>
         {tickets.length > 0 && (
@@ -107,10 +107,14 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
                 {ticket.front.map((n, i) => (
                   <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
                 ))}
-                <span className="mx-1 h-4 w-px bg-ink-600" />
-                {ticket.back.map((n, i) => (
-                  <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
-                ))}
+                {rule.backCount > 0 && (
+                  <>
+                    <span className="mx-1 h-4 w-px bg-ink-600" />
+                    {ticket.back.map((n, i) => (
+                      <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           ))}
