@@ -2,9 +2,10 @@ import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
 import type { RandomTicket, LotteryItem } from "@/types/lottery";
-import { LOTTERY_RULES, LOTTERY_TYPES, LOTTERIES, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, type LotteryPackage } from "@/utils/lottery";
+import { LOTTERY_RULES, LOTTERIES, LOTTERY_CATEGORIES, getCategoryOf, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, matchTicket, type LotteryPackage, type LotteryCategory } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
+import { LotterySelector } from "@/components/ControlBar";
 import { exportTicketsToImage, isCompoundTicket } from "@/utils/exportTickets";
 import { cn } from "@/lib/utils";
 
@@ -133,6 +134,26 @@ export default function MatchResultPage() {
   const PRIZE_COLORS = lottery.prizeColors;
   const PACKAGES = lottery.packages;
 
+  /** 彩种选择大类（与主页一致的两行布局）：当前彩种所属大类 */
+  const [activeCategory, setActiveCategory] = useState<LotteryCategory>(() =>
+    getCategoryOf(type),
+  );
+  // 切换彩种时同步大类选中态
+  useEffect(() => {
+    setActiveCategory(getCategoryOf(type));
+  }, [type]);
+  const categoryLotteries =
+    LOTTERY_CATEGORIES.find((c) => c.key === activeCategory)?.lotteries ?? [];
+  /** 点击大类：切换展示的彩种列表；若当前彩种不在该大类下，跳到该大类第一个彩种 */
+  const handleCategoryClick = (cat: LotteryCategory) => {
+    setActiveCategory(cat);
+    const list = LOTTERY_CATEGORIES.find((c) => c.key === cat)?.lotteries ?? [];
+    if (list.length > 0 && !list.includes(type)) {
+      setCustomTickets([{ front: [], back: [] }]);
+      navigate(`/match?type=${list[0]}`);
+    }
+  };
+
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
   /** 奖级表折叠状态：默认折叠，避免在移动端占太多空间 */
@@ -178,6 +199,9 @@ export default function MatchResultPage() {
   const frontMin = rule.frontMin ?? 1;
   const backMin = rule.backMin ?? 1;
   const hasBack = rule.backCount > 0;
+  /** 开奖是否含后区/特别号（用于展示开奖号码：七乐彩玩家不选后区但开奖有特别号） */
+  const backDrawTotal = rule.backDrawCount ?? rule.backCount;
+  const hasBackDraw = backDrawTotal > 0;
   /** 当前彩种奖级顺序（一等奖在前），用于排序与「随机到指定奖级」下拉 */
   const prizeLevels = useMemo(() => getPrizeLevels(type), [type]);
   /** 生效的停止奖级：切换彩种时若原值不适用则回退到最低奖级 */
@@ -200,6 +224,15 @@ export default function MatchResultPage() {
   }, [type, data, loading, fetchRemoteData]);
 
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
+    // 按位彩种：每位都必须选了 1 个数字（顺序即位置，不可缺位）
+    if (rule.positionBased) {
+      const frontOk = Array.from({ length: rule.frontCount }, (_, i) => i)
+        .every((i) => !!ticket.front[i]);
+      const backOk = rule.backCount > 0
+        ? Array.from({ length: rule.backCount }, (_, i) => i).every((i) => !!ticket.back[i])
+        : true;
+      return frontOk && backOk;
+    }
     return ticket.front.length >= rule.frontCount && ticket.back.length >= rule.backCount;
   };
 
@@ -221,15 +254,9 @@ export default function MatchResultPage() {
     const filteredData = getFilteredData();
     if (filteredData.length === 0) return { total: 0, matches: [], maxMatch: 0, prizeLevel: null };
 
-    // 用 Set 加速命中判断（复式选号池可能较大，且查询期数可能为"所有"）
-    const frontSet = new Set(ticket.front);
-    const backSet = new Set(ticket.back);
-
     const results = filteredData.map((item) => {
-      // 复式一整注直接匹配：命中数 = 选号池 ∩ 开奖号码
-      // 对单式即为该注命中数；对复式即为该期能达到的最高命中数（决定最高奖项）
-      const frontMatch = item.front_numbers.filter(n => frontSet.has(n)).length;
-      const backMatch = item.back_numbers.filter(n => backSet.has(n)).length;
+      // 按位彩种逐位对位比较；普通彩种集合交集（matchTicket 内部区分）
+      const { frontMatch, backMatch } = matchTicket(type, ticket, item);
       const prize = getPrizeLevel(frontMatch, backMatch);
       return {
         term: item.term,
@@ -257,7 +284,7 @@ export default function MatchResultPage() {
     const bestPrize = matches.length > 0 ? matches[0].prizeLevel : null;
 
     return { total: matches.length, matches, maxMatch, prizeLevel: bestPrize };
-  }, [getFilteredData, getPrizeLevel, prizeLevels]);
+  }, [getFilteredData, getPrizeLevel, prizeLevels, type]);
 
   // 复式不再展开为所有组合，直接以一整注匹配历史，避免注数过多导致卡顿
   // memo：仅当 customTickets / 数据范围 / 彩种变化时重算，避免每渲染遍历数千期
@@ -275,12 +302,23 @@ export default function MatchResultPage() {
       }, null)
     : null;
 
+  /** 新建一注空选号：按位彩种用定长数组（每位初始为空串），普通彩种用空数组 */
+  const newEmptyTicket = useCallback((): LotteryTicket => {
+    if (rule.positionBased) {
+      return {
+        front: Array.from({ length: rule.frontCount }, () => ""),
+        back: Array.from({ length: rule.backCount }, () => ""),
+      };
+    }
+    return { front: [], back: [] };
+  }, [rule]);
+
   const handleAddTicket = () => {
-    setCustomTickets([...customTickets, { front: [], back: [] }]);
+    setCustomTickets([...customTickets, newEmptyTicket()]);
   };
 
   const handleClearAll = () => {
-    setCustomTickets([{ front: [], back: [] }]);
+    setCustomTickets([newEmptyTicket()]);
   };
 
   const handleRemoveTicket = (index: number) => {
@@ -298,6 +336,17 @@ export default function MatchResultPage() {
         if (arr.length >= maxCount) return ticket;
         return { ...ticket, [numType]: [...arr, number].sort((a, b) => Number(a) - Number(b)) };
       }
+    }));
+  };
+
+  /** 按位彩种选号：为指定位置选 1 个数字（再次点击同一数字则取消） */
+  const handlePickPosition = (ticketIndex: number, numType: "front" | "back", pos: number, number: string) => {
+    setCustomTickets(customTickets.map((ticket, idx) => {
+      if (idx !== ticketIndex) return ticket;
+      const arr = [...ticket[numType]];
+      while (arr.length <= pos) arr.push("");
+      arr[pos] = arr[pos] === number ? "" : number;
+      return { ...ticket, [numType]: arr };
     }));
   };
 
@@ -329,13 +378,10 @@ export default function MatchResultPage() {
       while (attempts < maxAttempts) {
         attempts++;
         const candidate = generateTicket(type);
-        const fSet = new Set(candidate.front);
-        const bSet = new Set(candidate.back);
         let candBestIdx = prizeLevels.length;
         for (let i = 0; i < filteredData.length; i++) {
           const item = filteredData[i];
-          const fm = item.front_numbers.filter((n) => fSet.has(n)).length;
-          const bm = item.back_numbers.filter((n) => bSet.has(n)).length;
+          const { frontMatch: fm, backMatch: bm } = matchTicket(type, candidate, item);
           const tier = getPrizeTierByMatch(type, fm, bm);
           if (tier) {
             const idx = prizeLevels.indexOf(tier.level);
@@ -432,37 +478,49 @@ export default function MatchResultPage() {
   return (
     <div className="min-h-screen">
       <div className="border-b border-ink-700/60 bg-ink-950/40">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-3 sm:px-6">
-          <div>
-            <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
-              {rule.name}对比分析
-            </h1>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">选号与历史数据匹配</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {bestPrize && (
-              <span className={cn("rounded-full px-3 py-1 text-xs font-bold", PRIZE_COLORS[bestPrize]?.bg, PRIZE_COLORS[bestPrize]?.text)}>
-                最高: {bestPrize}
-              </span>
-            )}
-            <div className="flex rounded-lg border border-ink-600 overflow-hidden">
-              {LOTTERY_TYPES.map((t) => (
+        <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6">
+          {/* 第一行：大分类（体育彩票 / 福利彩票） + 标题 + 最高中奖 */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="seg">
+              {LOTTERY_CATEGORIES.map((cat) => (
                 <button
-                  key={t}
+                  key={cat.key}
                   type="button"
-                  onClick={() => {
-                    setCustomTickets([{ front: [], back: [] }]);
-                    navigate(`/match?type=${t}`);
-                  }}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium transition-colors",
-                    type === t ? "bg-crimson text-white" : "bg-ink-900 text-zinc-400 hover:bg-ink-800 dark:text-zinc-300",
+                    "seg-item",
+                    activeCategory === cat.key && "seg-item-active",
                   )}
+                  onClick={() => handleCategoryClick(cat.key)}
                 >
-                  {LOTTERY_RULES[t].name}
+                  {cat.name}
                 </button>
               ))}
             </div>
+            <div className="ml-auto flex items-center gap-2 leading-tight text-right">
+              {bestPrize && (
+                <span className={cn("rounded-full px-3 py-1 text-xs font-bold", PRIZE_COLORS[bestPrize]?.bg, PRIZE_COLORS[bestPrize]?.text)}>
+                  最高: {bestPrize}
+                </span>
+              )}
+              <div>
+                <h1 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                  {rule.name}对比分析
+                </h1>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">选号与历史数据匹配</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 第二行：具体彩种（与主页一致的 LotterySelector） */}
+          <div className="mt-2">
+            <LotterySelector
+              lotteries={categoryLotteries}
+              activeLottery={type}
+              onSelect={(t) => {
+                setCustomTickets([{ front: [], back: [] }]);
+                navigate(`/match?type=${t}`);
+              }}
+            />
           </div>
         </div>
       </div>
@@ -912,7 +970,9 @@ export default function MatchResultPage() {
                               </span>
                             ) : (
                               <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                                请选择至少{rule.frontCount}个{rule.frontLabel}{hasBack ? `和至少${rule.backCount}个${rule.backLabel}` : ""}
+                                {rule.positionBased
+                                  ? `请为每位数字各选 1 个（${rule.frontLabel}${hasBack ? ` + ${rule.backLabel}` : ""}）`
+                                  : `请选择至少${rule.frontCount}个${rule.frontLabel}${hasBack ? `和至少${rule.backCount}个${rule.backLabel}` : ""}`}
                               </span>
                             )}
                           </div>
@@ -938,56 +998,137 @@ export default function MatchResultPage() {
                           </div>
                         </div>
 
-                        <div className="mb-3">
-                          <div className="mb-2 flex items-center gap-2">
-                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              {rule.frontLabel} ({ticket.front.length}/{rule.frontMax}，最少{rule.frontCount})
-                            </span>
-                          </div>
-                          <div className={cn("grid gap-1", lottery.pickGridCols.front)}>
-                            {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => String(i + frontMin).padStart(2, "0")).map((num) => (
-                              <button
-                                key={num}
-                                type="button"
-                                className={cn(
-                                  "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
-                                  ticket.front.includes(num)
-                                    ? "bg-crimson text-white"
-                                    : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
-                                )}
-                                onClick={() => handleToggleNumber(ticketIdx, "front", num)}
-                              >
-                                {Number(num)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {hasBack && (
-                          <div>
-                            <div className="mb-2 flex items-center gap-2">
-                              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
-                              </span>
-                            </div>
-                            <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
-                              {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => String(i + backMin).padStart(2, "0")).map((num) => (
-                                <button
-                                  key={num}
-                                  type="button"
-                                  className={cn(
-                                    "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
-                                    ticket.back.includes(num)
-                                      ? "bg-indigo text-white"
-                                      : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
-                                  )}
-                                  onClick={() => handleToggleNumber(ticketIdx, "back", num)}
-                                >
-                                  {Number(num)}
-                                </button>
+                        {rule.positionBased ? (
+                          <>
+                            {/* 按位选号：每位独立选 1 个数字，顺序即位置，不可排序 */}
+                            <div className="mb-3 space-y-2">
+                              <div className="mb-1 flex items-center gap-2">
+                                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                  {rule.frontLabel}（每位选 1 个，共 {rule.frontCount} 位，{frontMin}-{rule.frontMax}）
+                                </span>
+                              </div>
+                              {Array.from({ length: rule.frontCount }, (_, pos) => (
+                                <div key={pos} className="flex items-center gap-2">
+                                  <span className="w-9 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                                    第{pos + 1}位
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => {
+                                      const num = String(i + frontMin).padStart(2, "0");
+                                      const selected = ticket.front[pos] === num;
+                                      return (
+                                        <button
+                                          key={num}
+                                          type="button"
+                                          className={cn(
+                                            "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-mono font-medium transition-colors",
+                                            selected
+                                              ? "bg-crimson text-white"
+                                              : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
+                                          )}
+                                          onClick={() => handlePickPosition(ticketIdx, "front", pos, num)}
+                                        >
+                                          {Number(num)}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               ))}
                             </div>
-                          </div>
+
+                            {hasBack && (
+                              <div className="space-y-2">
+                                <div className="mb-1 flex items-center gap-2">
+                                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                    {rule.backLabel}（选 1 个，{backMin}-{rule.backMax}）
+                                  </span>
+                                </div>
+                                {Array.from({ length: rule.backCount }, (_, pos) => (
+                                  <div key={pos} className="flex items-center gap-2">
+                                    <span className="w-9 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                                      {rule.backLabel}
+                                    </span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => {
+                                        const num = String(i + backMin).padStart(2, "0");
+                                        const selected = ticket.back[pos] === num;
+                                        return (
+                                          <button
+                                            key={num}
+                                            type="button"
+                                            className={cn(
+                                              "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-mono font-medium transition-colors",
+                                              selected
+                                                ? "bg-indigo text-white"
+                                                : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
+                                            )}
+                                            onClick={() => handlePickPosition(ticketIdx, "back", pos, num)}
+                                          >
+                                            {Number(num)}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className="mb-3">
+                              <div className="mb-2 flex items-center gap-2">
+                                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                  {rule.frontLabel} ({ticket.front.length}/{rule.frontMax}，最少{rule.frontCount})
+                                </span>
+                              </div>
+                              <div className={cn("grid gap-1", lottery.pickGridCols.front)}>
+                                {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => String(i + frontMin).padStart(2, "0")).map((num) => (
+                                  <button
+                                    key={num}
+                                    type="button"
+                                    className={cn(
+                                      "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
+                                      ticket.front.includes(num)
+                                        ? "bg-crimson text-white"
+                                        : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
+                                    )}
+                                    onClick={() => handleToggleNumber(ticketIdx, "front", num)}
+                                  >
+                                    {Number(num)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {hasBack && (
+                              <div>
+                                <div className="mb-2 flex items-center gap-2">
+                                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                    {rule.backLabel} ({ticket.back.length}/{rule.backMax}，最少{rule.backCount})
+                                  </span>
+                                </div>
+                                <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
+                                  {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => String(i + backMin).padStart(2, "0")).map((num) => (
+                                    <button
+                                      key={num}
+                                      type="button"
+                                      className={cn(
+                                        "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors",
+                                        ticket.back.includes(num)
+                                          ? "bg-indigo text-white"
+                                          : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
+                                      )}
+                                      onClick={() => handleToggleNumber(ticketIdx, "back", num)}
+                                    >
+                                      {Number(num)}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     );
@@ -1160,9 +1301,9 @@ export default function MatchResultPage() {
                                         m.frontMatch === rule.frontCount ? "bg-crimson/20 text-crimson" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
                                         {rule.frontLabel}{m.frontMatch}
                                       </span>
-                                      {hasBack && (
+                                      {hasBackDraw && (
                                         <span className={cn("rounded-md px-2 py-0.5 text-xs",
-                                          m.backMatch === rule.backCount ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
+                                          m.backMatch === backDrawTotal ? "bg-indigo/20 text-indigo" : "bg-ink-800 text-zinc-500 dark:text-zinc-400")}>
                                           {rule.backLabel}{m.backMatch}
                                         </span>
                                       )}
@@ -1184,14 +1325,14 @@ export default function MatchResultPage() {
                                       highlight={ticket.front.includes(n)}
                                     />
                                   ))}
-                                  {hasBack && <span className="mx-2 h-3 w-px bg-ink-600" />}
+                                  {hasBackDraw && <span className="mx-2 h-3 w-px bg-ink-600" />}
                                   {item.back_numbers.map((n, ni) => (
                                     <LotteryBall
                                       key={`bn-${ni}`}
                                       number={n}
                                       variant="back"
                                       size="sm"
-                                      highlight={ticket.back.includes(n)}
+                                      highlight={rule.backMatchFromFront ? ticket.front.includes(n) : ticket.back.includes(n)}
                                     />
                                   ))}
                                 </div>

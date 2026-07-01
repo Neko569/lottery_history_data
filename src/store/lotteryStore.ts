@@ -87,7 +87,7 @@ async function fetchWithFallback(
       if (res.ok) {
         const text = await res.text();
         const json = JSON.parse(text);
-        const data = parseLotteryData(json);
+        const data = parseLotteryData(json, type);
         return { data, source: "GitHub JSON" };
       }
       githubLastErr = new Error(`GitHub JSON 请求失败 (${res.status})`);
@@ -102,7 +102,7 @@ async function fetchWithFallback(
     if (res.ok) {
       const text = await res.text();
       const json = JSON.parse(text);
-      const data = parseLotteryData(json);
+      const data = parseLotteryData(json, type);
       return { data, source: "jsDelivr JSON" };
     }
     throw new Error(`jsDelivr JSON 请求失败 (${res.status})`);

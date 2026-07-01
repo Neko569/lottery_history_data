@@ -136,7 +136,7 @@ export default function ControlBar({ splitView }: ControlBarProps) {
 }
 
 /** 彩种选择行：自动测量可用宽度，放不下的彩种收进「更多」下拉 */
-function LotterySelector({
+export function LotterySelector({
   lotteries,
   activeLottery,
   onSelect,

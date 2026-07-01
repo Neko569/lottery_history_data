@@ -66,7 +66,7 @@ export default function LotteryList({
             >
               {rule.frontLabel}
             </span>
-            {rule.backCount > 0 && (
+            {(rule.backDrawCount ?? rule.backCount) > 0 && (
               <>
                 <span className="text-zinc-700 dark:text-zinc-500">·</span>
                 <span
@@ -101,7 +101,7 @@ export default function LotteryList({
               {item.front_numbers.map((n, i) => (
                 <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
               ))}
-              {rule.backCount > 0 && item.back_numbers.length > 0 && (
+              {(rule.backDrawCount ?? rule.backCount) > 0 && item.back_numbers.length > 0 && (
                 <>
                   <span className="mx-1 h-4 w-px bg-ink-600" />
                   {item.back_numbers.map((n, i) => (

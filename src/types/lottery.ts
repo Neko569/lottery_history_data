@@ -61,6 +61,11 @@ export interface LotteryRule {
   backLabel: string;
   /** 主题色键（取值见 `ACCENT_STYLES`，新增主题色只需扩映射表） */
   accent: Accent;
+  /** 是否按位匹配（数字型彩种如排列三/排列五/七星彩/福彩3D：每位数字与位置均需对位相同才算命中） */
+  positionBased?: boolean;
+  /** 特别号从前区选号中匹配（七乐彩：玩家只选 7 个基本号，特别号命中=玩家任一号码==开奖特别号）。
+   *  开启后 backCount 应为 0（玩家不选后区），backDrawCount 为开奖特别号个数，匹配时 backMatch 由前区号码推导。 */
+  backMatchFromFront?: boolean;
 }
 
 /** 随机生成的一注号码 */

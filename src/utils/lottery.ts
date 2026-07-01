@@ -1,4 +1,4 @@
-import type { LotteryRule, RandomTicket, PrizeTier } from "@/types/lottery";
+import type { LotteryRule, RandomTicket, PrizeTier, LotteryItem } from "@/types/lottery";
 
 // ──────────────────────────────────────────────
 // 彩种注册表（单一数据源）
@@ -210,26 +210,28 @@ const ssqConfig: LotteryConfig = {
  *  - 新增彩种：声明一个 `xxxConfig: LotteryConfig` 并加入此对象即可
  */
 
-/** 七星彩配置（体彩，7 位数字 0-9） */
+/** 七星彩配置（体彩，前 6 位各 0-9 + 后区 1 位 0-14，按位匹配） */
 const qxcConfig: LotteryConfig = {
   rule: {
-    frontCount: 7,
+    frontCount: 6,
     frontMax: 9,
     frontMin: 0,
-    backCount: 0,
-    backMax: 0,
+    backCount: 1,
+    backMax: 14,
+    backMin: 0,
     name: "七星彩",
-    frontLabel: "号码",
+    frontLabel: "前区",
     backLabel: "后区",
     accent: "crimson",
+    positionBased: true,
   },
   prizeTable: [
-    { level: "一等奖", conditions: [{ front: 7, back: 0 }], bonus: "浮动（封顶 500 万）", kind: "floating" },
-    { level: "二等奖", conditions: [{ front: 6, back: 0 }], bonus: "浮动", kind: "floating" },
-    { level: "三等奖", conditions: [{ front: 5, back: 0 }], bonus: "3,000 元", kind: "fixed" },
-    { level: "四等奖", conditions: [{ front: 4, back: 0 }], bonus: "500 元", kind: "fixed" },
-    { level: "五等奖", conditions: [{ front: 3, back: 0 }], bonus: "100 元", kind: "fixed" },
-    { level: "六等奖", conditions: [{ front: 2, back: 0 }], bonus: "20 元", kind: "fixed" },
+    { level: "一等奖", conditions: [{ front: 6, back: 1 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "7 位号码全部对位相同" },
+    { level: "二等奖", conditions: [{ front: 6, back: 0 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "前 6 位全部对位相同" },
+    { level: "三等奖", conditions: [{ front: 5, back: 1 }], bonus: "3,000 元", kind: "fixed", note: "前区任意 5 位对位 + 后区对位" },
+    { level: "四等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 1 }], bonus: "500 元", kind: "fixed" },
+    { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 1 }], bonus: "30 元", kind: "fixed" },
+    { level: "六等奖", conditions: [{ front: 3, back: 0 }, { front: 2, back: 1 }, { front: 1, back: 1 }, { front: 0, back: 1 }], bonus: "5 元", kind: "fixed" },
   ],
   remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/qxc_history.json",
   jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/qxc_history.json",
@@ -237,12 +239,14 @@ const qxcConfig: LotteryConfig = {
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "体彩", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#FFD700" },
   prizeColors: PRIZE_LEVEL_COLORS,
-  ruleNote: "七星彩共 7 位号码，每位 0-9，按位置匹配（本应用以集合命中数近似计算奖级）。",
-  pickGridCols: { front: "grid-cols-5 sm:grid-cols-10", back: "grid-cols-6" },
+  ruleNote: "七星彩前 6 位每位 0-9，后区 1 位 0-14，按位置对位中奖；不兼中兼得，每注只取最高奖级。奖池超 3 亿时一、二等奖比例倒置（一 10% / 二 90%）。",
+  pickGridCols: { front: "grid-cols-5 sm:grid-cols-10", back: "grid-cols-8" },
   category: "sports",
 };
 
-/** 排列三配置（体彩，3 位数字 0-9） */
+/** 排列三配置（体彩，3 位数字 0-9，按位匹配）
+ *  仅保留直选玩法（每位数字与位置均需对位相同）；组三/组六为组选模式，
+ *  本应用选号页只支持直选，故不纳入奖级表。 */
 const plsConfig: LotteryConfig = {
   rule: {
     frontCount: 3,
@@ -254,11 +258,10 @@ const plsConfig: LotteryConfig = {
     frontLabel: "号码",
     backLabel: "后区",
     accent: "blue",
+    positionBased: true,
   },
   prizeTable: [
     { level: "一等奖", conditions: [{ front: 3, back: 0 }], bonus: "1,040 元（直选）", kind: "fixed" },
-    { level: "二等奖", conditions: [{ front: 2, back: 0 }], bonus: "320 元（组三）", kind: "fixed" },
-    { level: "三等奖", conditions: [{ front: 1, back: 0 }], bonus: "173 元（组六）", kind: "fixed" },
   ],
   remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/pls_history.json",
   jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/pls_history.json",
@@ -266,12 +269,12 @@ const plsConfig: LotteryConfig = {
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "体彩", gradientFrom: "#2563EB", gradientTo: "#1D4ED8", rangeColor: "#FFD700" },
   prizeColors: PRIZE_LEVEL_COLORS,
-  ruleNote: "排列三共 3 位号码，每位 0-9，直选 1,040 元、组三 320 元、组六 173 元。",
+  ruleNote: "排列三共 3 位号码，每位 0-9，直选 3 位全部对位命中即 1,040 元。组三/组六为组选玩法，本应用仅支持直选，未纳入奖级表。",
   pickGridCols: { front: "grid-cols-5 sm:grid-cols-10", back: "grid-cols-6" },
   category: "sports",
 };
 
-/** 排列五配置（体彩，5 位数字 0-9） */
+/** 排列五配置（体彩，5 位数字 0-9，按位匹配） */
 const plwConfig: LotteryConfig = {
   rule: {
     frontCount: 5,
@@ -283,6 +286,7 @@ const plwConfig: LotteryConfig = {
     frontLabel: "号码",
     backLabel: "后区",
     accent: "emerald",
+    positionBased: true,
   },
   prizeTable: [
     { level: "一等奖", conditions: [{ front: 5, back: 0 }], bonus: "10,000 元", kind: "fixed" },
@@ -298,7 +302,9 @@ const plwConfig: LotteryConfig = {
   category: "sports",
 };
 
-/** 福彩3D配置（福彩，3 位数字 0-9） */
+/** 福彩3D配置（福彩，3 位数字 0-9，按位匹配）
+ *  仅保留直选玩法（每位数字与位置均需对位相同）；组三/组六为组选模式，
+ *  本应用选号页只支持直选，故不纳入奖级表。 */
 const fc3dConfig: LotteryConfig = {
   rule: {
     frontCount: 3,
@@ -310,11 +316,10 @@ const fc3dConfig: LotteryConfig = {
     frontLabel: "号码",
     backLabel: "后区",
     accent: "crimson",
+    positionBased: true,
   },
   prizeTable: [
     { level: "一等奖", conditions: [{ front: 3, back: 0 }], bonus: "1,040 元（直选）", kind: "fixed" },
-    { level: "二等奖", conditions: [{ front: 2, back: 0 }], bonus: "320 元（组三）", kind: "fixed" },
-    { level: "三等奖", conditions: [{ front: 1, back: 0 }], bonus: "173 元（组六）", kind: "fixed" },
   ],
   remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/fc3d_history.json",
   jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/fc3d_history.json",
@@ -322,31 +327,35 @@ const fc3dConfig: LotteryConfig = {
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#3A86FF" },
   prizeColors: PRIZE_LEVEL_COLORS,
-  ruleNote: "福彩3D共 3 位号码，每位 0-9，直选 1,040 元、组三 320 元、组六 173 元。",
+  ruleNote: "福彩3D共 3 位号码，每位 0-9，直选 3 位全部对位命中即 1,040 元。组三/组六为组选玩法，本应用仅支持直选，未纳入奖级表。",
   pickGridCols: { front: "grid-cols-5 sm:grid-cols-10", back: "grid-cols-6" },
   category: "welfare",
 };
 
-/** 七乐彩配置（福彩，7 个前区 1-30 + 1 个后区 1-30） */
+/** 七乐彩配置（福彩，玩家选 7 个基本号 1-30，开奖 7 基本号 + 1 特别号）
+ *  特别号由开奖给出，玩家不单独选；命中=玩家任一基本号==开奖特别号（backMatchFromFront）。
+ *  奖级表依据 2026 官方规则：一/二/三等奖浮动，四~七等奖固定。 */
 const qlcConfig: LotteryConfig = {
   rule: {
     frontCount: 7,
     frontMax: 30,
-    backCount: 1,
+    backCount: 0,
+    backDrawCount: 1,
     backMax: 30,
     name: "七乐彩",
     frontLabel: "基本号",
     backLabel: "特别号",
     accent: "violet",
+    backMatchFromFront: true,
   },
   prizeTable: [
-    { level: "一等奖", conditions: [{ front: 7, back: 1 }], bonus: "浮动（封顶 500 万）", kind: "floating" },
-    { level: "二等奖", conditions: [{ front: 7, back: 0 }], bonus: "浮动", kind: "floating" },
-    { level: "三等奖", conditions: [{ front: 6, back: 1 }], bonus: "3,000 元", kind: "fixed" },
-    { level: "四等奖", conditions: [{ front: 6, back: 0 }], bonus: "500 元", kind: "fixed" },
-    { level: "五等奖", conditions: [{ front: 5, back: 1 }], bonus: "200 元", kind: "fixed" },
-    { level: "六等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 1 }], bonus: "50 元", kind: "fixed" },
-    { level: "七等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 1 }], bonus: "10 元", kind: "fixed" },
+    { level: "一等奖", conditions: [{ front: 7, back: 0 }], bonus: "浮动（封顶 500 万）", kind: "floating", note: "7 个基本号全中" },
+    { level: "二等奖", conditions: [{ front: 6, back: 1 }], bonus: "浮动", kind: "floating", note: "6 基本号 + 特别号" },
+    { level: "三等奖", conditions: [{ front: 6, back: 0 }], bonus: "浮动", kind: "floating", note: "6 基本号" },
+    { level: "四等奖", conditions: [{ front: 5, back: 1 }], bonus: "200 元", kind: "fixed", note: "5 基本号 + 特别号" },
+    { level: "五等奖", conditions: [{ front: 5, back: 0 }], bonus: "50 元", kind: "fixed", note: "5 基本号" },
+    { level: "六等奖", conditions: [{ front: 4, back: 1 }], bonus: "10 元", kind: "fixed", note: "4 基本号 + 特别号" },
+    { level: "七等奖", conditions: [{ front: 4, back: 0 }], bonus: "5 元", kind: "fixed", note: "4 基本号" },
   ],
   remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/qlc_history.json",
   jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/qlc_history.json",
@@ -354,6 +363,7 @@ const qlcConfig: LotteryConfig = {
   backBallColors: { from: "#7c3aed", to: "#5b21b6" },
   logo: { topText: "福彩", gradientFrom: "#7C3AED", gradientTo: "#5B21B6", rangeColor: "#FFD700" },
   prizeColors: PRIZE_LEVEL_COLORS,
+  ruleNote: "七乐彩：从 1-30 选 7 个基本号，每期开 7 基本号 + 1 特别号；特别号命中=玩家任一号码==开奖特别号。一/二/三等奖为浮动奖，四~七等奖为固定奖。",
   pickGridCols: { front: "grid-cols-6 sm:grid-cols-10", back: "grid-cols-6 sm:grid-cols-10" },
   category: "welfare",
 };
@@ -372,14 +382,13 @@ const kl8Config: LotteryConfig = {
     accent: "orange",
   },
   prizeTable: [
-    { level: "一等奖", conditions: [{ front: 10, back: 0 }], bonus: "5,000,000 元（封顶）", kind: "floating" },
-    { level: "二等奖", conditions: [{ front: 9, back: 0 }], bonus: "8,000 元", kind: "fixed" },
-    { level: "三等奖", conditions: [{ front: 8, back: 0 }], bonus: "800 元", kind: "fixed" },
-    { level: "四等奖", conditions: [{ front: 7, back: 0 }], bonus: "80 元", kind: "fixed" },
-    { level: "五等奖", conditions: [{ front: 6, back: 0 }], bonus: "5 元", kind: "fixed" },
-    { level: "六等奖", conditions: [{ front: 5, back: 0 }], bonus: "3 元", kind: "fixed" },
-    { level: "七等奖", conditions: [{ front: 4, back: 0 }], bonus: "2 元", kind: "fixed" },
-    { level: "八等奖", conditions: [{ front: 3, back: 0 }], bonus: "1 元", kind: "fixed" },
+    { level: "一等奖", conditions: [{ front: 10, back: 0 }], bonus: "5,000,000 元（封顶）", kind: "floating", note: "选十中十，浮动奖" },
+    { level: "二等奖", conditions: [{ front: 9, back: 0 }], bonus: "8,000 元", kind: "fixed", note: "选十中九" },
+    { level: "三等奖", conditions: [{ front: 8, back: 0 }], bonus: "720 元", kind: "fixed", note: "选十中八" },
+    { level: "四等奖", conditions: [{ front: 7, back: 0 }], bonus: "80 元", kind: "fixed", note: "选十中七" },
+    { level: "五等奖", conditions: [{ front: 6, back: 0 }], bonus: "5 元", kind: "fixed", note: "选十中六" },
+    { level: "六等奖", conditions: [{ front: 5, back: 0 }], bonus: "3 元", kind: "fixed", note: "选十中五" },
+    { level: "七等奖", conditions: [{ front: 0, back: 0 }], bonus: "2 元", kind: "fixed", note: "选十全不中" },
   ],
   remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/kl8_history.json",
   jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/kl8_history.json",
@@ -387,7 +396,7 @@ const kl8Config: LotteryConfig = {
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "福彩", gradientFrom: "#EA580C", gradientTo: "#C2410C", rangeColor: "#3A86FF" },
   prizeColors: PRIZE_LEVEL_COLORS,
-  ruleNote: "快乐八每期开奖 20 个号码（1-80），选十玩法：玩家选 10 个号码，按命中数对应奖级。",
+  ruleNote: "快乐八选十玩法：每期开奖 20 个号码（1-80），玩家选 10 个，按命中数对应奖级；全不中（0 中）亦中 2 元。共 7 个奖级。",
   pickGridCols: { front: "grid-cols-8 sm:grid-cols-10 lg:grid-cols-16", back: "grid-cols-6" },
   category: "welfare",
 };
@@ -434,6 +443,43 @@ export function getPrizeLevels(type: LotteryType): string[] {
 /** 根据命中数判定奖级；未中奖返回 null */
 export function getPrizeTierByMatch(type: LotteryType, frontMatch: number, backMatch: number): PrizeTier | null {
   return LOTTERIES[type].prizeTable.find((t) => t.conditions.some((c) => c.front === frontMatch && c.back === backMatch)) ?? null;
+}
+
+/**
+ * 计算一注彩票与一期开奖号码的命中数。
+ *  - 普通彩种（大乐透/双色球/七乐彩/快乐八）：集合交集命中数
+ *  - 按位彩种（排列三/排列五/七星彩/福彩3D）：每位数字与位置均需对位相同才算命中
+ *    ticket.front[i] 为玩家选的第 i 位数字（顺序即位置，不可排序）
+ */
+export function matchTicket(
+  type: LotteryType,
+  ticket: { front: string[]; back: string[] },
+  draw: LotteryItem,
+): { frontMatch: number; backMatch: number } {
+  const rule = LOTTERY_RULES[type];
+  if (rule.positionBased) {
+    let frontMatch = 0;
+    for (let i = 0; i < rule.frontCount; i++) {
+      if (ticket.front[i] != null && ticket.front[i] === draw.front_numbers[i]) frontMatch++;
+    }
+    const backMatch = rule.backCount > 0
+      ? (ticket.back[0] != null && ticket.back[0] === draw.back_numbers[0] ? 1 : 0)
+      : 0;
+    return { frontMatch, backMatch };
+  }
+  const fSet = new Set(ticket.front);
+  // 七乐彩等特别号从前区推导：玩家不选后区，特别号命中=玩家任一号码==开奖特别号
+  if (rule.backMatchFromFront) {
+    return {
+      frontMatch: draw.front_numbers.filter((n) => fSet.has(n)).length,
+      backMatch: draw.back_numbers.filter((n) => fSet.has(n)).length > 0 ? 1 : 0,
+    };
+  }
+  const bSet = new Set(ticket.back);
+  return {
+    frontMatch: draw.front_numbers.filter((n) => fSet.has(n)).length,
+    backMatch: draw.back_numbers.filter((n) => bSet.has(n)).length,
+  };
 }
 
 // ──────────────────────────────────────────────
@@ -502,9 +548,26 @@ export function toLotteryType(value: unknown, fallback: LotteryType = "dlt"): Lo
   return isLotteryType(value) ? value : fallback;
 }
 
+/** 在 [min, max] 范围内随机生成 1 个号码（补零，可重复，用于按位彩种） */
+function pickOne(max: number, min: number = 1): string {
+  const range = max - min + 1;
+  return pad2(Math.floor(Math.random() * range) + min);
+}
+
 /** 生成一注符合规则的随机号码 */
 export function generateTicket(type: LotteryType): RandomTicket {
   const rule = LOTTERY_RULES[type];
+  // 按位彩种：每位独立取 1 个数字（允许重复，顺序即位置，不可排序）
+  if (rule.positionBased) {
+    const frontMin = rule.frontMin ?? 1;
+    const backMin = rule.backMin ?? 1;
+    return {
+      front: Array.from({ length: rule.frontCount }, () => pickOne(rule.frontMax, frontMin)),
+      back: rule.backCount > 0
+        ? Array.from({ length: rule.backCount }, () => pickOne(rule.backMax, backMin))
+        : [],
+    };
+  }
   return {
     front: pickNumbers(rule.frontCount, rule.frontMax, rule.frontMin ?? 1),
     back: pickNumbers(rule.backCount, rule.backMax, rule.backMin ?? 1),

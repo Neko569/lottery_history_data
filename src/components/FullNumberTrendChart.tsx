@@ -69,7 +69,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
   const count = area === "front"
     ? (rule.frontDrawCount ?? rule.frontCount)
     : (rule.backDrawCount ?? rule.backCount);
-  const hasBack = rule.backCount > 0;
+  const hasBack = (rule.backDrawCount ?? rule.backCount) > 0;
   const label = area === "front" ? rule.frontLabel : rule.backLabel;
   const midValue = Math.floor((minNum + maxNum) / 2) + 1;
 

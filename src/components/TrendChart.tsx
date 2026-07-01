@@ -58,7 +58,7 @@ export default function TrendChart({ type, data }: TrendChartProps) {
     ? (rule.frontDrawCount ?? rule.frontCount)
     : (rule.backDrawCount ?? rule.backCount);
   const max = area === "front" ? rule.frontMax : rule.backMax;
-  const hasBack = rule.backCount > 0;
+  const hasBack = (rule.backDrawCount ?? rule.backCount) > 0;
 
   const chartData = useMemo(() => {
     if (!data || data.items.length === 0) return [];

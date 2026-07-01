@@ -1,17 +1,19 @@
 import type { LotteryData, LotteryItem } from "@/types/lottery";
+import { LOTTERY_RULES, isLotteryType } from "@/utils/lottery";
 
-/** 校验并解析彩票 JSON 数据，兼容数组与对象两种结构 */
-export function parseLotteryData(raw: unknown): LotteryData {
+/** 校验并解析彩票 JSON 数据，兼容数组与对象两种结构
+ *  type 可选：用于按彩种规则拆分仅含 numbers 字段的记录（如七星彩前6+后1） */
+export function parseLotteryData(raw: unknown, type?: string): LotteryData {
   if (Array.isArray(raw)) {
     // 兼容纯数组结构
-    return wrapItems(raw.map(normalizeItem));
+    return wrapItems(raw.map((it) => normalizeItem(it, type)));
   }
 
   if (raw && typeof raw === "object") {
     const obj = raw as Record<string, unknown>;
     const itemsRaw = obj.items;
     if (Array.isArray(itemsRaw)) {
-      const items = itemsRaw.map(normalizeItem);
+      const items = itemsRaw.map((it) => normalizeItem(it, type));
       return {
         generated_at: typeof obj.generated_at === "string" ? obj.generated_at : "",
         source: typeof obj.source === "string" ? obj.source : "",
@@ -81,7 +83,7 @@ export function parseLotteryText(text: string, type: string): LotteryData {
     // 尝试 JSON 解析
     try {
       const json = JSON.parse(trimmed);
-      return parseLotteryData(json);
+      return parseLotteryData(json, type);
     } catch {
       // JSON 解析失败，继续尝试 CSV
     }
@@ -90,14 +92,26 @@ export function parseLotteryText(text: string, type: string): LotteryData {
   return parseCSVLotteryData(trimmed, type);
 }
 
-/** 规整单条记录，确保字段类型正确 */
-function normalizeItem(raw: unknown): LotteryItem {
+/** 规整单条记录，确保字段类型正确
+ *  type 可选：当记录仅含 numbers 字段时，按彩种规则拆分前后区（如七星彩前6+后1） */
+function normalizeItem(raw: unknown, type?: string): LotteryItem {
   const obj = (raw ?? {}) as Record<string, unknown>;
   let front = toStringArray(obj.front_numbers);
   let back = toStringArray(obj.back_numbers);
-  // 部分彩种（七星彩/排列三/排列五/福彩3D/快乐八）数据仅含 numbers 字段，回退到前区
+  // 部分彩种（七星彩/排列三/排列五/福彩3D/快乐八）数据仅含 numbers 字段
   if (front.length === 0 && back.length === 0) {
-    front = toStringArray(obj.numbers);
+    const numbers = toStringArray(obj.numbers);
+    if (numbers.length > 0) {
+      const rule = type && isLotteryType(type) ? LOTTERY_RULES[type] : undefined;
+      // 后区开奖个数 > 0 的彩种（如七星彩 6+1）按 frontCount/backDrawCount 拆分
+      const backDraw = rule ? (rule.backDrawCount ?? rule.backCount) : 0;
+      if (rule && backDraw > 0 && numbers.length >= rule.frontCount + backDraw) {
+        front = numbers.slice(0, rule.frontCount);
+        back = numbers.slice(rule.frontCount, rule.frontCount + backDraw);
+      } else {
+        front = numbers;
+      }
+    }
   }
   return {
     term: (obj.term as string | number) ?? "",
