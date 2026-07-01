@@ -481,7 +481,8 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
 
           <div className="card p-4">
             <h4 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">号码出现频率（{period}期）</h4>
-            <div className="h-48">
+            {/* 高度按号码个数自适应：号码多（如快乐八 80 个）时拉高，避免柱子过挤 */}
+            <div style={{ height: Math.max(192, (maxNum - minNum + 1) * 7) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={frequencyData} layout="vertical" margin={{ top: 5, right: 5, left: 30, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false} />
