@@ -1322,7 +1322,7 @@ export default function MatchResultPage() {
                                       number={n}
                                       variant="front"
                                       size="sm"
-                                      highlight={ticket.front.includes(n)}
+                                      highlight={rule.positionBased ? ticket.front[ni] === n : ticket.front.includes(n)}
                                     />
                                   ))}
                                   {hasBackDraw && <span className="mx-2 h-3 w-px bg-ink-600" />}
@@ -1332,7 +1332,7 @@ export default function MatchResultPage() {
                                       number={n}
                                       variant="back"
                                       size="sm"
-                                      highlight={rule.backMatchFromFront ? ticket.front.includes(n) : ticket.back.includes(n)}
+                                      highlight={rule.positionBased ? ticket.back[ni] === n : rule.backMatchFromFront ? ticket.front.includes(n) : ticket.back.includes(n)}
                                     />
                                   ))}
                                 </div>
