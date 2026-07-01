@@ -60,8 +60,13 @@ export default function LotteryPanel({
               {rule.name}
             </h2>
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              {rule.frontLabel} {rule.frontCount}/{rule.frontMax} ·{" "}
-              {rule.backLabel} {rule.backCount}/{rule.backMax}
+              {rule.frontLabel} {rule.frontCount}/{rule.frontMax}
+              {rule.backCount > 0 && (
+                <>
+                  {" · "}
+                  {rule.backLabel} {rule.backCount}/{rule.backMax}
+                </>
+              )}
             </p>
           </div>
         </div>

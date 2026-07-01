@@ -13,7 +13,8 @@ export function LotteryLogo({ type, className = "" }: LotteryLogoProps) {
   const { logo, rule } = LOTTERIES[type];
   // 每个彩种独立 gradient id，避免同页多 Logo 渐变冲突
   const gradId = `logoGrad-${type}`;
-  const rangeText = `${rule.frontMax} ${rule.backMax}`;
+  const rangeText = rule.backMax > 0 ? `${rule.frontMax} ${rule.backMax}` : `${rule.frontMax}`;
+  const hasTopText = logo.topText.length > 0;
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className={className}>
@@ -24,13 +25,30 @@ export function LotteryLogo({ type, className = "" }: LotteryLogoProps) {
         </linearGradient>
       </defs>
       <circle cx="50" cy="50" r="45" fill={`url(#${gradId})`} />
-      <text x="50" y="38" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">
-        {logo.topText}
-      </text>
-      <text x="50" y="55" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">
+      {hasTopText && (
+        <text x="50" y="38" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">
+          {logo.topText}
+        </text>
+      )}
+      <text
+        x="50"
+        y={hasTopText ? 55 : 50}
+        textAnchor="middle"
+        fill="white"
+        fontSize="16"
+        fontWeight="bold"
+        dominantBaseline="middle"
+      >
         {rule.name}
       </text>
-      <text x="50" y="73" textAnchor="middle" fill={logo.rangeColor} fontSize="11" fontWeight="bold">
+      <text
+        x="50"
+        y={hasTopText ? 73 : 70}
+        textAnchor="middle"
+        fill={logo.rangeColor}
+        fontSize="11"
+        fontWeight="bold"
+      >
         {rangeText}
       </text>
     </svg>

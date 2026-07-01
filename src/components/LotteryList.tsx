@@ -66,15 +66,19 @@ export default function LotteryList({
             >
               {rule.frontLabel}
             </span>
-            <span className="text-zinc-700 dark:text-zinc-500">·</span>
-            <span
-              className={cn(
-                "font-medium",
-                ACCENT_STYLES[rule.accent].text400Alt,
-              )}
-            >
-              {rule.backLabel}
-            </span>
+            {(rule.backDrawCount ?? rule.backCount) > 0 && (
+              <>
+                <span className="text-zinc-700 dark:text-zinc-500">·</span>
+                <span
+                  className={cn(
+                    "font-medium",
+                    ACCENT_STYLES[rule.accent].text400Alt,
+                  )}
+                >
+                  {rule.backLabel}
+                </span>
+              </>
+            )}
           </span>
         </div>
 
@@ -97,10 +101,14 @@ export default function LotteryList({
               {item.front_numbers.map((n, i) => (
                 <LotteryBall key={`f-${i}`} number={n} variant="front" size="sm" />
               ))}
-              <span className="mx-1 h-4 w-px bg-ink-600" />
-              {item.back_numbers.map((n, i) => (
-                <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
-              ))}
+              {(rule.backDrawCount ?? rule.backCount) > 0 && item.back_numbers.length > 0 && (
+                <>
+                  <span className="mx-1 h-4 w-px bg-ink-600" />
+                  {item.back_numbers.map((n, i) => (
+                    <LotteryBall key={`b-${i}`} number={n} variant="back" size="sm" />
+                  ))}
+                </>
+              )}
             </div>
           </div>
         ))}

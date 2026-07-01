@@ -54,8 +54,11 @@ export default function TrendChart({ type, data }: TrendChartProps) {
     tooltipItem: isDark ? "#e5e5e5" : "#27272a",
   };
 
-  const count = area === "front" ? rule.frontCount : rule.backCount;
+  const count = area === "front"
+    ? (rule.frontDrawCount ?? rule.frontCount)
+    : (rule.backDrawCount ?? rule.backCount);
   const max = area === "front" ? rule.frontMax : rule.backMax;
+  const hasBack = (rule.backDrawCount ?? rule.backCount) > 0;
 
   const chartData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
@@ -159,11 +162,13 @@ export default function TrendChart({ type, data }: TrendChartProps) {
     return [];
   };
 
+  const minNum = area === "front" ? (rule.frontMin ?? 1) : (rule.backMin ?? 1);
+
   const getYAxisDomain = () => {
     if (trendType === "position") {
-      return [1, max] as [number, number];
+      return [minNum, max] as [number, number];
     } else if (trendType === "sum") {
-      return [count, count * max] as [number, number];
+      return [count * minNum, count * max] as [number, number];
     } else if (trendType === "parity") {
       return [0, count] as [number, number];
     }
@@ -200,28 +205,30 @@ export default function TrendChart({ type, data }: TrendChartProps) {
             ))}
           </div>
           {/* 前后区切换 */}
-          <div className="seg">
-            <button
-              type="button"
-              className={cn(
-                "seg-item",
-                area === "front" && "seg-item-active",
-              )}
-              onClick={() => setArea("front")}
-            >
-              {rule.frontLabel}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "seg-item",
-                area === "back" && "seg-item-active",
-              )}
-              onClick={() => setArea("back")}
-            >
-              {rule.backLabel}
-            </button>
-          </div>
+          {hasBack && (
+            <div className="seg">
+              <button
+                type="button"
+                className={cn(
+                  "seg-item",
+                  area === "front" && "seg-item-active",
+                )}
+                onClick={() => setArea("front")}
+              >
+                {rule.frontLabel}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "seg-item",
+                  area === "back" && "seg-item-active",
+                )}
+                onClick={() => setArea("back")}
+              >
+                {rule.backLabel}
+              </button>
+            </div>
+          )}
           {/* 期数选择 */}
           <div className="seg">
             {TREND_PERIOD_OPTIONS.map((p) => (
