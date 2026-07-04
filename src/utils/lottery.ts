@@ -136,8 +136,8 @@ const dltConfig: LotteryConfig = {
     accent: "crimson",
   },
   prizeTable: [
-    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
-    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（单注封顶 500 万）", kind: "floating", note: "单期总额封顶 1 亿" },
+    { level: "一等奖", conditions: [{ front: 5, back: 2 }], bonus: "浮动（单注封顶 1000 万，追加 1800 万）", kind: "floating", note: "单期总额封顶 1 亿" },
+    { level: "二等奖", conditions: [{ front: 5, back: 1 }], bonus: "浮动（单注封顶 500 万，追加 900 万）", kind: "floating", note: "单期总额封顶 1 亿" },
     { level: "三等奖", conditions: [{ front: 5, back: 0 }, { front: 4, back: 2 }], bonus: "5,000 元（奖池≥8亿时 6,666 元）", kind: "fixed" },
     { level: "四等奖", conditions: [{ front: 4, back: 1 }], bonus: "300 元（奖池≥8亿时 380 元）", kind: "fixed" },
     { level: "五等奖", conditions: [{ front: 4, back: 0 }, { front: 3, back: 2 }], bonus: "150 元（奖池≥8亿时 200 元）", kind: "fixed" },
@@ -169,7 +169,7 @@ const dltConfig: LotteryConfig = {
       { kind: "compound", front: 7, back: 2, count: 1 },
     ] },
   ],
-  ruleNote: "新规：当奖池资金高于 8 亿元（含）时，三~七等奖按更高固定金额派奖（详见各奖级奖金列）。",
+  ruleNote: "2026 新规（第26014期起）：奖级由原 9 个合并为 7 个；一/二等奖单期总额各封顶 1 亿元；追加投注中一/二等奖额外获 80% 奖金；奖池≥8亿时三~七等奖按更高固定金额派奖。",
   pickGridCols: { front: "grid-cols-7 lg:grid-cols-11", back: "grid-cols-6" },
   category: "sports",
 };
