@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp } from "lucide-react";
+import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp, Ban } from "lucide-react";
 import type { RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, LOTTERIES, LOTTERY_CATEGORIES, getCategoryOf, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, matchTicket, type LotteryPackage, type LotteryCategory } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -142,6 +142,11 @@ export default function MatchResultPage() {
   useEffect(() => {
     setActiveCategory(getCategoryOf(type));
   }, [type]);
+  // 切换彩种时清空杀号（不同彩种号码范围不同，旧杀号无效）
+  useEffect(() => {
+    setKilledFront([]);
+    setKilledBack([]);
+  }, [type]);
   const categoryLotteries =
     LOTTERY_CATEGORIES.find((c) => c.key === activeCategory)?.lotteries ?? [];
   /** 点击大类：切换展示的彩种列表；若当前彩种不在该大类下，跳到该大类第一个彩种 */
@@ -160,6 +165,12 @@ export default function MatchResultPage() {
   const [prizeTableCollapsed, setPrizeTableCollapsed] = useState(true);
   /** 「不中指定奖级继续随机」开关 */
   const [keepRandomUntilPrize, setKeepRandomUntilPrize] = useState(false);
+  /** 「杀号」开关：开启后随机时不选入已杀号码 */
+  const [killEnabled, setKillEnabled] = useState(false);
+  /** 已杀前区号码（已补零格式） */
+  const [killedFront, setKilledFront] = useState<string[]>([]);
+  /** 已杀后区号码（已补零格式） */
+  const [killedBack, setKilledBack] = useState<string[]>([]);
   /** 停止奖级（下拉选项与奖级表一致） */
   const [targetPrizeLevel, setTargetPrizeLevel] = useState<string>(() => {
     const levels = getPrizeLevels(toLotteryType(searchParams.get("type")));
@@ -354,10 +365,32 @@ export default function MatchResultPage() {
     }));
   };
 
+  /** 杀号选号：点击号码加入/移除杀号池（再次点击同一号码则取消） */
+  const handleToggleKilled = (numType: "front" | "back", number: string) => {
+    if (numType === "front") {
+      setKilledFront((prev) =>
+        prev.includes(number)
+          ? prev.filter((n) => n !== number)
+          : [...prev, number].sort((a, b) => Number(a) - Number(b)),
+      );
+    } else {
+      setKilledBack((prev) =>
+        prev.includes(number)
+          ? prev.filter((n) => n !== number)
+          : [...prev, number].sort((a, b) => Number(a) - Number(b)),
+      );
+    }
+  };
+
+  /** 当前生效的杀号排除参数：杀号开关关闭时为 undefined */
+  const killExclude = killEnabled
+    ? { front: killedFront, back: killedBack }
+    : undefined;
+
   const handleGenerateTicket = (ticketIndex: number) => {
     // 开关关闭：单次随机，行为不变
     if (!keepRandomUntilPrize) {
-      const t = generateTicket(type);
+      const t = generateTicket(type, killExclude);
       setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? { front: t.front, back: t.back } : ticket)));
       setGenStatus(null);
       return;
@@ -381,7 +414,7 @@ export default function MatchResultPage() {
 
       while (attempts < maxAttempts) {
         attempts++;
-        const candidate = generateTicket(type);
+        const candidate = generateTicket(type, killExclude);
         let candBestIdx = prizeLevels.length;
         for (let i = 0; i < filteredData.length; i++) {
           const item = filteredData[i];
@@ -403,7 +436,7 @@ export default function MatchResultPage() {
         }
       }
 
-      const finalTicket: LotteryTicket = bestTicket ?? (() => { const t = generateTicket(type); return { front: t.front, back: t.back }; })();
+      const finalTicket: LotteryTicket = bestTicket ?? (() => { const t = generateTicket(type, killExclude); return { front: t.front, back: t.back }; })();
       setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? finalTicket : ticket)));
       setGenerating(false);
       setGenStatus(
@@ -419,7 +452,7 @@ export default function MatchResultPage() {
     const newTickets: LotteryTicket[] = [];
     pkg.parts.forEach((part) => {
       for (let i = 0; i < part.count; i++) {
-        const t = generateTicketWithCounts(type, part.front, part.back);
+        const t = generateTicketWithCounts(type, part.front, part.back, killExclude);
         newTickets.push({ front: t.front, back: t.back });
       }
     });
@@ -946,6 +979,106 @@ export default function MatchResultPage() {
                     <p className="mt-2 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
                       开启后，点击每注的随机按钮会反复生成号码，直到所选范围内至少有一期中出「停止奖级」或更高奖级为止；一等奖等极小概率奖级可能无法在限定次数内命中。
                     </p>
+                  )}
+                </div>
+
+                {/* 杀号开关：开启后随机生成时不选入已杀号码 */}
+                <div className="rounded-xl border border-ink-700/60 bg-ink-900/30 p-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={killEnabled}
+                      disabled={generating}
+                      onClick={() => setKillEnabled((v) => !v)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+                        killEnabled ? "bg-crimson" : "bg-ink-600"
+                      )}
+                    >
+                      <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white transition-transform", killEnabled ? "translate-x-4" : "translate-x-0.5")} />
+                    </button>
+                    <Ban className="h-3.5 w-3.5 text-crimson" />
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">杀号</span>
+                    <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-400">开启后随机时不选入已杀号码</span>
+                  </div>
+
+                  {killEnabled && (
+                    <div className="mt-3 space-y-3 border-t border-ink-700/60 pt-3">
+                      <div>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                            {rule.frontLabel} 杀号 (已杀{killedFront.length}/{rule.frontMax - frontMin + 1})
+                          </span>
+                        </div>
+                        <div className={cn("grid gap-1", lottery.pickGridCols.front)}>
+                          {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => String(i + frontMin).padStart(2, "0")).map((num) => {
+                            const killed = killedFront.includes(num);
+                            return (
+                              <button
+                                key={num}
+                                type="button"
+                                disabled={generating}
+                                className={cn(
+                                  "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors disabled:opacity-50",
+                                  killed
+                                    ? "bg-zinc-700 text-zinc-400 line-through"
+                                    : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
+                                )}
+                                onClick={() => handleToggleKilled("front", num)}
+                              >
+                                {Number(num)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {hasBack && (
+                        <div>
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                              {rule.backLabel} 杀号 (已杀{killedBack.length}/{rule.backMax - backMin + 1})
+                            </span>
+                          </div>
+                          <div className={cn("grid gap-1", lottery.pickGridCols.back)}>
+                            {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => String(i + backMin).padStart(2, "0")).map((num) => {
+                              const killed = killedBack.includes(num);
+                              return (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  disabled={generating}
+                                  className={cn(
+                                    "flex h-8 w-8 items-center justify-center justify-self-center rounded-full text-sm font-medium transition-colors disabled:opacity-50",
+                                    killed
+                                      ? "bg-zinc-700 text-zinc-400 line-through"
+                                      : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300"
+                                  )}
+                                  onClick={() => handleToggleKilled("back", num)}
+                                >
+                                  {Number(num)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {(killedFront.length > 0 || killedBack.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => { setKilledFront([]); setKilledBack([]); }}
+                          disabled={generating}
+                          className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
+                        >
+                          清空杀号
+                        </button>
+                      )}
+                      <p className="text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                        已杀号码在点击「随机」按钮（含套餐票生成、不中指定奖级继续随机）时不会被选入；若杀号数量超过可选范围上限，将自动回退为不排除。
+                      </p>
+                    </div>
                   )}
                 </div>
 

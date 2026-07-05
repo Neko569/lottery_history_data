@@ -524,14 +524,18 @@ export function pad2(n: number): string {
 }
 
 /** 在 [min, max] 范围内随机抽取 count 个不重复号码（升序、补零）
- *  防御：count 超过可选范围时 clamp，count <= 0 时返回空数组，避免无限循环 */
-export function pickNumbers(count: number, max: number, min: number = 1): string[] {
+ *  防御：count 超过可选范围时 clamp，count <= 0 时返回空数组，避免无限循环
+ *  exclude：要从池中排除的号码（杀号功能，已补零格式） */
+export function pickNumbers(count: number, max: number, min: number = 1, exclude: string[] = []): string[] {
   const range = max - min + 1;
-  const safeCount = Math.min(Math.max(count, 0), range);
+  const excludeSet = new Set(exclude);
+  const safeCount = Math.min(Math.max(count, 0), range - excludeSet.size);
   if (safeCount === 0) return [];
   const pool = new Set<number>();
   while (pool.size < safeCount) {
-    pool.add(Math.floor(Math.random() * range) + min);
+    const n = Math.floor(Math.random() * range) + min;
+    if (excludeSet.has(pad2(n))) continue;
+    pool.add(n);
   }
   return Array.from(pool)
     .sort((a, b) => a - b)
@@ -548,29 +552,44 @@ export function toLotteryType(value: unknown, fallback: LotteryType = "dlt"): Lo
   return isLotteryType(value) ? value : fallback;
 }
 
-/** 在 [min, max] 范围内随机生成 1 个号码（补零，可重复，用于按位彩种） */
-function pickOne(max: number, min: number = 1): string {
+/** 在 [min, max] 范围内随机生成 1 个号码（补零，可重复，用于按位彩种）
+ *  exclude：要排除的号码（杀号功能，已补零格式）；若全部被杀则回退到无排除随机，避免无限循环 */
+function pickOne(max: number, min: number = 1, exclude: string[] = []): string {
   const range = max - min + 1;
-  return pad2(Math.floor(Math.random() * range) + min);
+  const excludeSet = new Set(exclude);
+  if (excludeSet.size >= range) {
+    return pad2(Math.floor(Math.random() * range) + min);
+  }
+  let n: number;
+  do {
+    n = Math.floor(Math.random() * range) + min;
+  } while (excludeSet.has(pad2(n)));
+  return pad2(n);
 }
 
-/** 生成一注符合规则的随机号码 */
-export function generateTicket(type: LotteryType): RandomTicket {
+/** 生成一注符合规则的随机号码
+ *  exclude：杀号排除（{ front, back }，已补零格式），仅排除对应区号码 */
+export function generateTicket(
+  type: LotteryType,
+  exclude?: { front?: string[]; back?: string[] },
+): RandomTicket {
   const rule = LOTTERY_RULES[type];
+  const frontExclude = exclude?.front ?? [];
+  const backExclude = exclude?.back ?? [];
   // 按位彩种：每位独立取 1 个数字（允许重复，顺序即位置，不可排序）
   if (rule.positionBased) {
     const frontMin = rule.frontMin ?? 1;
     const backMin = rule.backMin ?? 1;
     return {
-      front: Array.from({ length: rule.frontCount }, () => pickOne(rule.frontMax, frontMin)),
+      front: Array.from({ length: rule.frontCount }, () => pickOne(rule.frontMax, frontMin, frontExclude)),
       back: rule.backCount > 0
-        ? Array.from({ length: rule.backCount }, () => pickOne(rule.backMax, backMin))
+        ? Array.from({ length: rule.backCount }, () => pickOne(rule.backMax, backMin, backExclude))
         : [],
     };
   }
   return {
-    front: pickNumbers(rule.frontCount, rule.frontMax, rule.frontMin ?? 1),
-    back: pickNumbers(rule.backCount, rule.backMax, rule.backMin ?? 1),
+    front: pickNumbers(rule.frontCount, rule.frontMax, rule.frontMin ?? 1, frontExclude),
+    back: pickNumbers(rule.backCount, rule.backMax, rule.backMin ?? 1, backExclude),
   };
 }
 
@@ -579,12 +598,20 @@ export function generateTickets(type: LotteryType, count: number): RandomTicket[
   return Array.from({ length: count }, () => generateTicket(type));
 }
 
-/** 生成一注指定前后区个数的随机号码（用于套餐票/复式） */
-export function generateTicketWithCounts(type: LotteryType, frontCount: number, backCount: number): RandomTicket {
+/** 生成一注指定前后区个数的随机号码（用于套餐票/复式）
+ *  exclude：杀号排除（{ front, back }，已补零格式） */
+export function generateTicketWithCounts(
+  type: LotteryType,
+  frontCount: number,
+  backCount: number,
+  exclude?: { front?: string[]; back?: string[] },
+): RandomTicket {
   const rule = LOTTERY_RULES[type];
+  const frontExclude = exclude?.front ?? [];
+  const backExclude = exclude?.back ?? [];
   return {
-    front: pickNumbers(frontCount, rule.frontMax, rule.frontMin ?? 1),
-    back: pickNumbers(backCount, rule.backMax, rule.backMin ?? 1),
+    front: pickNumbers(frontCount, rule.frontMax, rule.frontMin ?? 1, frontExclude),
+    back: pickNumbers(backCount, rule.backMax, rule.backMin ?? 1, backExclude),
   };
 }
 
