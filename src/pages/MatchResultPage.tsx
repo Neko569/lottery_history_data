@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp, Ban } from "lucide-react";
+import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp, Ban, Trash2 } from "lucide-react";
 import type { RandomTicket, LotteryItem } from "@/types/lottery";
 import { LOTTERY_RULES, LOTTERIES, LOTTERY_CATEGORIES, getCategoryOf, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, matchTicket, type LotteryPackage, type LotteryCategory } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
@@ -161,6 +161,10 @@ export default function MatchResultPage() {
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>(30);
   const [pickCollapsed, setPickCollapsed] = useState(false);
+  /** 选号区每注折叠状态：记录已折叠的注索引 */
+  const [collapsedTickets, setCollapsedTickets] = useState<Set<number>>(new Set());
+  /** 杀号面板折叠状态（杀号开关开启后可折叠号码网格） */
+  const [killPanelCollapsed, setKillPanelCollapsed] = useState(false);
   /** 奖级表折叠状态：默认折叠，避免在移动端占太多空间 */
   const [prizeTableCollapsed, setPrizeTableCollapsed] = useState(true);
   /** 「不中指定奖级继续随机」开关 */
@@ -233,6 +237,20 @@ export default function MatchResultPage() {
       fetchRemoteData(type);
     }
   }, [type, data, loading, fetchRemoteData]);
+
+  // 选号后自动同步到文本导入区，便于复制或继续编辑
+  useEffect(() => {
+    const lines = customTickets
+      .map((t) => {
+        const front = t.front.filter((n) => n !== "");
+        const back = t.back.filter((n) => n !== "");
+        if (front.length === 0 && back.length === 0) return "";
+        if (hasBack) return `${front.join(" ")} + ${back.join(" ")}`;
+        return front.join(" ");
+      })
+      .filter((l) => l.length > 0);
+    setImportText(lines.join("\n"));
+  }, [customTickets, hasBack]);
 
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
     // 按位彩种：每位都必须选了 1 个数字（顺序即位置，不可缺位）
@@ -332,12 +350,23 @@ export default function MatchResultPage() {
     setCustomTickets([...customTickets, newEmptyTicket()]);
   };
 
-  const handleClearAll = () => {
-    setCustomTickets([newEmptyTicket()]);
+  /** 清空指定注的选号（重置为空注，保留注位） */
+  const handleClearTicket = (index: number) => {
+    setCustomTickets(customTickets.map((t, i) => (i === index ? newEmptyTicket() : t)));
   };
 
   const handleRemoveTicket = (index: number) => {
     setCustomTickets(customTickets.filter((_, i) => i !== index));
+  };
+
+  /** 切换指定注的折叠状态 */
+  const toggleTicketCollapse = (ticketIdx: number) => {
+    setCollapsedTickets((prev) => {
+      const next = new Set(prev);
+      if (next.has(ticketIdx)) next.delete(ticketIdx);
+      else next.add(ticketIdx);
+      return next;
+    });
   };
 
   const handleToggleNumber = (ticketIndex: number, numType: "front" | "back", number: string) => {
@@ -1000,10 +1029,30 @@ export default function MatchResultPage() {
                     </button>
                     <Ban className="h-3.5 w-3.5 text-crimson" />
                     <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">杀号</span>
-                    <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-400">开启后随机时不选入已杀号码</span>
+                    {killEnabled ? (
+                      <>
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                          已杀{rule.frontLabel}{killedFront.length}个{hasBack ? `、${rule.backLabel}${killedBack.length}个` : ""}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setKillPanelCollapsed((v) => !v)}
+                          className="ml-auto text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                          title={killPanelCollapsed ? "展开" : "折叠"}
+                        >
+                          {killPanelCollapsed ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronUp className="h-4 w-4" />
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="ml-auto text-[10px] text-zinc-500 dark:text-zinc-400">开启后随机时不选入已杀号码</span>
+                    )}
                   </div>
 
-                  {killEnabled && (
+                  {killEnabled && !killPanelCollapsed && (
                     <div className="mt-3 space-y-3 border-t border-ink-700/60 pt-3">
                       <div>
                         <div className="mb-2 flex items-center gap-2">
@@ -1091,7 +1140,11 @@ export default function MatchResultPage() {
                         complete ? "border-green-500/40" : "border-ink-700/60"
                       )}>
                         <div className="mb-3 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleTicketCollapse(ticketIdx)}
+                            className="flex items-center gap-3 text-left"
+                          >
                             <span className="rounded-full bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold">
                               第{ticketIdx + 1}注
                             </span>
@@ -1112,7 +1165,12 @@ export default function MatchResultPage() {
                                   : `请选择至少${rule.frontCount}个${rule.frontLabel}${hasBack ? `和至少${rule.backCount}个${rule.backLabel}` : ""}`}
                               </span>
                             )}
-                          </div>
+                            {collapsedTickets.has(ticketIdx) ? (
+                              <ChevronDown className="h-4 w-4 text-zinc-500" />
+                            ) : (
+                              <ChevronUp className="h-4 w-4 text-zinc-500" />
+                            )}
+                          </button>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
@@ -1123,11 +1181,21 @@ export default function MatchResultPage() {
                             >
                               <Shuffle className={cn("h-3 w-3", generating && "animate-pulse")} />
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => handleClearTicket(ticketIdx)}
+                              disabled={generating}
+                              className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
+                              title="清空本注"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
                             {customTickets.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() => handleRemoveTicket(ticketIdx)}
                                 className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
+                                title="删除本注"
                               >
                                 <Minus className="h-3 w-3" />
                               </button>
@@ -1135,7 +1203,25 @@ export default function MatchResultPage() {
                           </div>
                         </div>
 
-                        {rule.positionBased ? (
+                        {collapsedTickets.has(ticketIdx) ? (
+                          <div className="flex flex-wrap items-center gap-1.5 py-1">
+                            {ticket.front.filter(Boolean).length === 0 && ticket.back.filter(Boolean).length === 0 ? (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">未选号</span>
+                            ) : (
+                              <>
+                                {ticket.front.filter(Boolean).map((n, i) => (
+                                  <LotteryBall key={`cf-${i}`} number={n} variant="front" size="sm" />
+                                ))}
+                                {hasBack && ticket.back.filter(Boolean).length > 0 && (
+                                  <span className="mx-1 h-3 w-px bg-ink-600" />
+                                )}
+                                {ticket.back.filter(Boolean).map((n, i) => (
+                                  <LotteryBall key={`cb-${i}`} number={n} variant="back" size="sm" />
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        ) : rule.positionBased ? (
                           <>
                             {/* 按位选号：每位独立选 1 个数字，顺序即位置，不可排序 */}
                             <div className="mb-3 space-y-2">
@@ -1279,14 +1365,6 @@ export default function MatchResultPage() {
                     >
                       <Plus className="h-4 w-4" />
                       添加一注
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearAll}
-                      className="btn btn-sm text-zinc-500 hover:text-crimson dark:text-zinc-400"
-                    >
-                      <Minus className="h-3 w-3" />
-                      清空
                     </button>
                     {customTickets.some(t => t.front.length > 0 || t.back.length > 0) && (
                       <button
