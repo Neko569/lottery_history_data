@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Shuffle, Trash2, ArrowRight, Download } from "lucide-react";
 import type { LotteryType, RandomTicket } from "@/types/lottery";
@@ -19,6 +19,11 @@ export default function RandomGenerator({ type }: RandomGeneratorProps) {
   const rule = LOTTERY_RULES[type];
   const [count, setCount] = useState(1);
   const [tickets, setTickets] = useState<RandomTicket[]>([]);
+
+  // 切换彩种后清空随机号码，避免旧彩种号码带到新彩种
+  useEffect(() => {
+    setTickets([]);
+  }, [type]);
 
   const handleGenerate = () => {
     setTickets(generateTickets(type, count));
