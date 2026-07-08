@@ -9,9 +9,10 @@ import { LotterySelector } from "@/components/ControlBar";
 import { exportTicketsToImage, isCompoundTicket } from "@/utils/exportTickets";
 import { cn } from "@/lib/utils";
 
-type RangeOption = 30 | 50 | 100 | "all";
+type RangeOption = 30 | 50 | 100 | "all" | "latest";
 
 const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
+  { value: "latest", label: "最新一期" },
   { value: 30, label: "近30期" },
   { value: 50, label: "近50期" },
   { value: 100, label: "近100期" },
@@ -269,7 +270,7 @@ export default function MatchResultPage() {
 
   const getFilteredData = useCallback(() => {
     if (!data) return [];
-    const count = selectedRange === "all" ? data.items.length : selectedRange;
+    const count = selectedRange === "all" ? data.items.length : selectedRange === "latest" ? 1 : selectedRange;
     return data.items.slice(0, count);
   }, [data, selectedRange]);
 
