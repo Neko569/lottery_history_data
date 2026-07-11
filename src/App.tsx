@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import Home from "@/pages/Home";
 import TrendDetail from "@/pages/TrendDetail";
 import MatchResultPage from "@/pages/MatchResultPage";
+import BetDistribution from "@/pages/BetDistribution";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/trend/:type" element={<TrendDetail />} />
         <Route path="/match" element={<MatchResultPage />} />
+        <Route path="/distribution" element={<BetDistribution />} />
       </Routes>
     </Router>
   );
