@@ -1,18 +1,19 @@
 import { NavLink } from "react-router-dom";
-import { Home as HomeIcon, Target, TrendingUp } from "lucide-react";
+import { Home as HomeIcon, Target, TrendingUp, BarChart3 } from "lucide-react";
 import { useLotteryStore } from "@/store/lotteryStore";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 
 /** 全局统一导航栏 —— 在所有页面顶部常驻 */
 export default function Navbar() {
-  // 读取当前彩种，使"走势/对比分析"入口带上对应 type
+  // 读取当前彩种，使"走势/对比分析/投注分布"入口带上对应 type
   const activeLottery = useLotteryStore((s) => s.activeLottery);
 
   const navItems = [
     { to: "/", label: "首页", icon: HomeIcon, end: true },
     { to: `/trend/${activeLottery}`, label: "走势", icon: TrendingUp, end: false },
     { to: `/match?type=${activeLottery}`, label: "对比分析", icon: Target, end: false },
+    { to: `/distribution?type=${activeLottery}`, label: "投注分布", icon: BarChart3, end: false },
   ];
 
   return (
