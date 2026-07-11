@@ -403,7 +403,7 @@ export default function BetDistribution() {
 
             <div className="grid gap-6 lg:grid-cols-2">
               {/* 左侧：选号 + 文本导入 */}
-              <div className="card p-4 lg:sticky lg:top-4 lg:self-start">
+              <div className="card min-w-0 p-4 lg:sticky lg:top-4 lg:self-start">
                 <div className="mb-3 flex items-center gap-2">
                   <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">选号区</span>
                   <span className="rounded-full bg-ink-800 px-2 py-0.5 text-xs text-zinc-400 dark:text-zinc-300">{customTickets.length}注</span>
@@ -541,7 +541,7 @@ export default function BetDistribution() {
               </div>
 
               {/* 右侧：分析结果 */}
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
                 {!hasInput ? (
                   <div className="card text-center py-12">
                     <BarChart3 className="mx-auto h-10 w-10 text-zinc-400 mb-3" />
