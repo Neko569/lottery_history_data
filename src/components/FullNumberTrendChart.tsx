@@ -35,6 +35,9 @@ const TREND_TYPE_LABELS: Record<TrendType, string> = {
 
 const PALETTE = ["#E63946", "#D4AF37", "#3A86FF", "#06D6A0", "#9B5DE5", "#F15BB5", "#FF9F1C"];
 
+/** 热力图期数选项（独立于走势图的期数选择） */
+const HEATMAP_PERIOD_OPTIONS = [50, 100, 150, 200];
+
 const isPrime = (n: number): boolean => {
   if (n <= 1) return false;
   if (n <= 3) return true;
@@ -49,6 +52,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
   const rule = LOTTERY_RULES[type];
   const { isDark } = useTheme();
   const [period, setPeriod] = useState(50);
+  const [heatmapPeriod, setHeatmapPeriod] = useState(50);
   const [area, setArea] = useState<"front" | "back">("front");
   const [trendType, setTrendType] = useState<TrendType>("position");
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
@@ -129,7 +133,7 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
 
   const heatmapData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
-    const sliced = data.items.slice(0, Math.min(50, period));
+    const sliced = data.items.slice(0, heatmapPeriod);
     return sliced.map((item, idx) => {
       const nums = area === "front" ? item.front_numbers : item.back_numbers;
       const row: Record<string, number | string> = { term: String(item.term), index: idx };
@@ -138,7 +142,20 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       }
       return row;
     });
-  }, [data, period, area, maxNum, minNum]);
+  }, [data, heatmapPeriod, area, maxNum, minNum]);
+
+  /** 按位彩种的热力图数据：每期各位置的号码（用于按位拆分渲染） */
+  const positionHeatmapData = useMemo(() => {
+    if (!data || data.items.length === 0 || !rule.positionBased) return [];
+    const sliced = data.items.slice(0, heatmapPeriod);
+    return sliced.map((item) => ({
+      term: String(item.term),
+      front: item.front_numbers,
+    }));
+  }, [data, heatmapPeriod, rule]);
+
+  /** 按位彩种是否使用按位热力图（前区且多位时启用） */
+  const usePositionHeatmap = rule.positionBased && area === "front" && rule.frontCount > 1;
 
   const missData = useMemo(() => {
     if (!data || data.items.length === 0) return [];
@@ -403,48 +420,127 @@ export default function FullNumberTrendChart({ type, data }: FullNumberTrendChar
       {/* 号码热力图 */}
       {heatmapData.length > 0 && (
         <div className="card p-4">
-          <h4 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">号码分布热力图（最近50期）</h4>
-          <div className="overflow-x-auto">
-            <div className="min-w-[700px]">
-              {/* 号码列标题 */}
-              <div className="flex items-center gap-1 mb-1">
-                <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-400 dark:text-zinc-500">期号</span>
-                {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((n) => (
-                  <div
-                    key={n}
-                    className="flex-1 text-center text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400"
-                  >
-                    {String(n).padStart(2, "0")}
-                  </div>
-                ))}
-              </div>
-              {/* 热力图数据 */}
-              <div className="grid grid-cols-1 gap-0.5">
-                {heatmapData.map((row) => (
-                  <div key={row.term as string} className="flex items-center gap-0.5">
-                    <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                      {(row.term as string).slice(-3)}
-                    </span>
-                    {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((n) => (
-                      <div
-                        key={n}
-                        className={cn(
-                          "flex-1 h-5 flex items-center justify-center rounded-sm transition-colors text-[10px] font-mono",
-                          row[`n${n}`] === 1
-                            ? "bg-crimson text-white font-bold"
-                            : "text-zinc-400 dark:text-zinc-500",
-                        )}
-                        style={row[`n${n}`] === 0 ? { backgroundColor: chartColors.heatmapEmpty } : undefined}
-                        title={`${row.term} - 号码 ${String(n).padStart(2, "0")}: ${row[`n${n}`] === 1 ? "出现" : "未出"}`}
-                      >
-                        {String(n).padStart(2, "0")}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              号码分布热力图（最近{heatmapPeriod}期）
+            </h4>
+            {/* 热力图期数选择器 */}
+            <div className="seg ml-auto flex flex-wrap sm:inline-flex">
+              {HEATMAP_PERIOD_OPTIONS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={cn("seg-item", heatmapPeriod === p && "seg-item-active")}
+                  onClick={() => setHeatmapPeriod(p)}
+                >
+                  {p}期
+                </button>
+              ))}
             </div>
           </div>
+
+          {usePositionHeatmap ? (
+            /* 按位热力图：每位一个独立热力图，横向滚动 */
+            <div className="overflow-x-auto pb-2">
+              <div className="flex gap-4" style={{ minWidth: "max-content" }}>
+                {Array.from({ length: rule.frontCount }, (_, posIdx) => {
+                  const posMin = rule.frontMin ?? 1;
+                  const posMax = rule.frontMax;
+                  return (
+                    <div key={posIdx} className="shrink-0">
+                      <div className="mb-1.5 text-center text-xs font-medium text-gold">
+                        第{posIdx + 1}位
+                      </div>
+                      {/* 号码列标题 */}
+                      <div className="flex items-center gap-0.5 mb-1">
+                        <span className="w-12 flex-shrink-0 text-right text-[10px] font-mono text-zinc-400 dark:text-zinc-500">期号</span>
+                        {Array.from({ length: posMax - posMin + 1 }, (_, i) => i + posMin).map((n) => (
+                          <div
+                            key={n}
+                            className="w-7 text-center text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400"
+                          >
+                            {String(n).padStart(2, "0")}
+                          </div>
+                        ))}
+                      </div>
+                      {/* 热力图数据 */}
+                      <div className="grid grid-cols-1 gap-0.5">
+                        {positionHeatmapData.map((row) => {
+                          const posNum = row.front[posIdx] ?? "";
+                          return (
+                            <div key={row.term} className="flex items-center gap-0.5">
+                              <span className="w-12 flex-shrink-0 text-right text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                                {row.term.slice(-3)}
+                              </span>
+                              {Array.from({ length: posMax - posMin + 1 }, (_, i) => i + posMin).map((n) => {
+                                const hit = posNum === String(n).padStart(2, "0");
+                                return (
+                                  <div
+                                    key={n}
+                                    className={cn(
+                                      "w-7 h-5 flex items-center justify-center rounded-sm transition-colors text-[10px] font-mono",
+                                      hit ? "bg-crimson text-white font-bold" : "text-zinc-400 dark:text-zinc-500",
+                                    )}
+                                    style={!hit ? { backgroundColor: chartColors.heatmapEmpty } : undefined}
+                                    title={`${row.term} - 第${posIdx + 1}位: ${posNum}`}
+                                  >
+                                    {String(n).padStart(2, "0")}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* 标准热力图：单号码范围，集合命中 */
+            <div className="overflow-x-auto">
+              <div className="min-w-[700px]">
+                {/* 号码列标题 */}
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-400 dark:text-zinc-500">期号</span>
+                  {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((n) => (
+                    <div
+                      key={n}
+                      className="flex-1 text-center text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400"
+                    >
+                      {String(n).padStart(2, "0")}
+                    </div>
+                  ))}
+                </div>
+                {/* 热力图数据 */}
+                <div className="grid grid-cols-1 gap-0.5">
+                  {heatmapData.map((row) => (
+                    <div key={row.term as string} className="flex items-center gap-0.5">
+                      <span className="w-16 flex-shrink-0 text-right text-xs font-mono text-zinc-500 dark:text-zinc-400">
+                        {(row.term as string).slice(-3)}
+                      </span>
+                      {Array.from({ length: maxNum - minNum + 1 }, (_, i) => i + minNum).map((n) => (
+                        <div
+                          key={n}
+                          className={cn(
+                            "flex-1 h-5 flex items-center justify-center rounded-sm transition-colors text-[10px] font-mono",
+                            row[`n${n}`] === 1
+                              ? "bg-crimson text-white font-bold"
+                              : "text-zinc-400 dark:text-zinc-500",
+                          )}
+                          style={row[`n${n}`] === 0 ? { backgroundColor: chartColors.heatmapEmpty } : undefined}
+                          title={`${row.term} - 号码 ${String(n).padStart(2, "0")}: ${row[`n${n}`] === 1 ? "出现" : "未出"}`}
+                        >
+                          {String(n).padStart(2, "0")}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="mt-2 flex items-center justify-end gap-4 text-xs text-zinc-500 dark:text-zinc-400">
             <span className="flex items-center gap-1">
               <span className="h-3 w-3 rounded-sm bg-crimson" /> 出现
