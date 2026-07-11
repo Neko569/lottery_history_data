@@ -178,28 +178,47 @@ export default function BetDistribution() {
   const maxFrontFreq = Math.max(1, ...Array.from(frontFreq.values()));
   const maxBackFreq = Math.max(1, ...Array.from(backFreq.values()));
 
-  /** 前区十位分组：按十位数字分组（0x/1x/2x/3x...），统计用户所有输入的合计频次 */
-  const frontGroupDist = useMemo(() => {
-    const groups = new Map<number, number>();
-    for (const n of frontSet) {
-      const g = Math.floor(Number(n) / 10);
-      groups.set(g, (groups.get(g) ?? 0) + frontFreq.get(n)!);
-    }
-    // 补全所有可能的分组（按 frontMax 决定上界）
-    const maxGroup = Math.floor(rule.frontMax / 10);
-    const result: { label: string; count: number }[] = [];
-    for (let g = 0; g <= maxGroup; g++) {
+  /** 前区十位分组：枚举 frontCount 个号码分到各十位组的所有分布模式，标注用户输入中出现的模式 */
+  const { allPatterns, appearedMap, groupLabels, patternTotal, patternCapped } = useMemo(() => {
+    const numGroups = Math.floor(rule.frontMax / 10) + 1;
+    // 分组标签（0x/1x/2x/3x…）
+    const labels: string[] = [];
+    for (let g = 0; g < numGroups; g++) {
       const lo = g * 10;
       const hi = Math.min(g * 10 + 9, rule.frontMax);
-      const label = lo === hi
+      labels.push(lo === hi
         ? `${String(lo).padStart(2, "0")}`
-        : `${String(lo).padStart(2, "0")}-${String(hi).padStart(2, "0")}`;
-      result.push({ label, count: groups.get(g) ?? 0 });
+        : `${String(lo).padStart(2, "0")}-${String(hi).padStart(2, "0")}`);
     }
-    return result;
-  }, [frontSet, frontFreq, rule.frontMax]);
-  const groupTotal = frontGroupDist.reduce((s, g) => s + g.count, 0);
-  const maxGroupCount = Math.max(1, ...frontGroupDist.map((g) => g.count));
+    // 生成 frontCount 拆成 numGroups 份的所有非负整数组合（ Stars & Bars ）
+    const gen = (n: number, k: number): number[][] => {
+      if (k === 1) return [[n]];
+      const res: number[][] = [];
+      for (let i = 0; i <= n; i++) {
+        for (const rest of gen(n - i, k - 1)) res.push([i, ...rest]);
+      }
+      return res;
+    };
+    const all = gen(rule.frontCount, numGroups);
+    const CAP = 120;
+    const capped = all.length > CAP;
+    // 统计用户每注（前区正好 frontCount 个号码）的分布模式
+    const appeared = new Map<string, number>();
+    for (const t of customTickets) {
+      if (t.front.length !== rule.frontCount) continue;
+      const counts = new Array(numGroups).fill(0);
+      for (const n of t.front) counts[Math.floor(Number(n) / 10)]++;
+      const key = counts.join("-");
+      appeared.set(key, (appeared.get(key) ?? 0) + 1);
+    }
+    return {
+      allPatterns: capped ? [] : all,
+      appearedMap: appeared,
+      groupLabels: labels,
+      patternTotal: all.length,
+      patternCapped: capped,
+    };
+  }, [customTickets, rule.frontCount, rule.frontMax]);
 
   const newEmptyTicket = (): LotteryTicket => ({ front: [], back: [] });
 
@@ -642,41 +661,63 @@ export default function BetDistribution() {
                       )}
                     </div>
 
-                    {/* 3) 前区十位分组分布 */}
+                    {/* 3) 前区十位分组分布：列出所有可能性，已出现标金、未出现标灰 */}
                     <div className="card p-4">
                       <div className="mb-3 flex items-center gap-2">
                         <BarChart3 className="h-4 w-4 text-gold" />
                         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{rule.frontLabel}十位分组分布</span>
-                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">汇总所有输入</span>
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">所有可能性 · 出现/未出现区分</span>
                       </div>
-                      {/* 模式串：3 1 1 0 */}
-                      <div className="mb-4 flex flex-wrap items-center gap-2">
-                        {frontGroupDist.map((g, i) => (
-                          <span key={i} className="flex items-baseline gap-1 rounded-lg bg-ink-900/60 px-2.5 py-1">
-                            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">{g.label}</span>
-                            <span className="font-mono text-sm font-bold text-gold">{g.count}</span>
-                          </span>
+                      {/* 分组标签说明 */}
+                      <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                        <span>分组：</span>
+                        {groupLabels.map((l, i) => (
+                          <span key={i} className="rounded bg-ink-900/60 px-1.5 py-0.5 font-mono">{i}:{l}</span>
                         ))}
-                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">合计 {groupTotal}</span>
                       </div>
-                      {/* 分组条形图 */}
-                      <div className="space-y-2">
-                        {frontGroupDist.map((g, i) => (
-                          <div key={i} className="flex items-center gap-3">
-                            <span className="w-16 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">{g.label}</span>
-                            <div className="flex h-6 flex-1 items-center overflow-hidden rounded-md bg-ink-900/50">
-                              <div
-                                className="flex h-full items-center justify-end rounded-md bg-gradient-to-r from-gold/70 to-gold px-2 transition-all"
-                                style={{ width: `${(g.count / maxGroupCount) * 100}%` }}
-                              >
-                                {g.count > 0 && <span className="text-[10px] font-bold text-zinc-900">{g.count}</span>}
-                              </div>
-                            </div>
+                      {/* 图例 */}
+                      <div className="mb-3 flex items-center gap-3 text-[10px] text-zinc-500 dark:text-zinc-400">
+                        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-gold" />已出现</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-ink-700" />未出现</span>
+                      </div>
+                      {patternCapped ? (
+                        <div>
+                          <p className="mb-2 text-[10px] text-zinc-500 dark:text-zinc-400">
+                            共 {patternTotal} 种可能性，数量过多仅显示已出现的组合：
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from(appearedMap.entries()).map(([key, cnt]) => (
+                              <span key={key} className="rounded-md bg-gold px-2 py-1 font-mono text-xs font-bold text-zinc-900">
+                                {key} ×{cnt}
+                              </span>
+                            ))}
+                            {appearedMap.size === 0 && (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">暂无完整选号（每注需选满 {rule.frontCount} 个{rule.frontLabel}）</span>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {allPatterns.map((p, i) => {
+                            const key = p.join("-");
+                            const cnt = appearedMap.get(key) ?? 0;
+                            return (
+                              <span
+                                key={i}
+                                title={cnt > 0 ? `出现 ${cnt} 次` : "未出现"}
+                                className={cn(
+                                  "rounded-md px-2 py-1 font-mono text-xs font-bold transition-colors",
+                                  cnt > 0 ? "bg-gold text-zinc-900" : "bg-ink-800 text-zinc-500 dark:text-zinc-500",
+                                )}
+                              >
+                                {key}{cnt > 0 ? ` ×${cnt}` : ""}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                       <p className="mt-3 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-                        按{rule.frontLabel}号码的十位数字分组（0x/1x/2x…），统计所有输入号码在各组的合计出现次数。
+                        按{rule.frontLabel}号码十位分组，列出 {rule.frontCount} 个号码在各组分布的所有可能组合（共 {patternTotal} 种，各组次数之和为 {rule.frontCount}）。已出现的标金、未出现的标灰。
                       </p>
                     </div>
                   </>
