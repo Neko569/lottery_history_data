@@ -68,16 +68,23 @@ export interface LotteryRule {
   backMatchFromFront?: boolean;
 }
 
+/** 玩法类型：直选（默认）/ 组选三 / 组选六（仅排列三等按位数字彩适用） */
+export type PlayType = "direct" | "group3" | "group6";
+
 /** 随机生成的一注号码 */
 export interface RandomTicket {
   front: string[];
   back: string[];
+  /** 玩法：默认直选。排列三组选三/组选六时区分 */
+  playType?: PlayType;
 }
 
 /** 单个奖级的中奖条件（前区/红球命中数 + 后区/蓝球命中数） */
 export interface PrizeCondition {
   front: number;
   back: number;
+  /** 该条件对应的玩法（组选三/六），默认直选 */
+  playType?: PlayType;
 }
 
 /** 奖级定义：奖级名称、中奖条件、奖金及类型 */

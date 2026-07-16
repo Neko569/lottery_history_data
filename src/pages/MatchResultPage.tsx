@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Trophy, TrendingDown, Target, Plus, Minus, Shuffle, RefreshCw, Upload, AlertCircle, CheckCircle2, Cloud, BarChart3, Download, Package, ChevronDown, ChevronUp, FileText, FileUp, Ban, Trash2 } from "lucide-react";
-import type { RandomTicket, LotteryItem } from "@/types/lottery";
+import type { RandomTicket, LotteryItem, PlayType } from "@/types/lottery";
 import { LOTTERY_RULES, LOTTERIES, LOTTERY_CATEGORIES, getCategoryOf, DATA_REPO_URLS, generateTicket, generateTicketWithCounts, toLotteryType, PRIZE_TABLE, getPrizeLevels, getPrizeTierByMatch, matchTicket, type LotteryPackage, type LotteryCategory } from "@/utils/lottery";
 import { useLotteryStore } from "@/store/lotteryStore";
 import LotteryBall from "@/components/LotteryBall";
@@ -22,6 +22,7 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
 interface LotteryTicket {
   front: string[];
   back: string[];
+  playType?: PlayType;
 }
 
 /** 文本导入解析结果 */
@@ -58,19 +59,28 @@ const normalizeNumberGroup = (
  *  - "04,06,07,33,34,05,08"      （逗号/空格分隔，无 + 时按 frontCount 拆分前后区，仅适用单式）
  * 单个位号码可不补零（如 4 6 7 33 34 + 5 8）。
  */
-const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax: number; frontMin?: number; backCount: number; backMax: number; backMin?: number; frontLabel: string; backLabel: string }): ParseResult => {
+const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax: number; frontMin?: number; backCount: number; backMax: number; backMin?: number; frontLabel: string; backLabel: string; name: string; positionBased?: boolean }): ParseResult => {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   const tickets: LotteryTicket[] = [];
   const errors: string[] = [];
   const frontMin = rule.frontMin ?? 1;
   const backMin = rule.backMin ?? 1;
+  // 排列三组选玩法支持行首标记：[直选]/[组选三]/[组选六]，缺省为直选
+  const playTypeMarker = (line: string): { playType: PlayType; rest: string } => {
+    const m = line.match(/^\[(直选|组选三|组选六)\]\s*/);
+    if (!m) return { playType: "direct", rest: line };
+    const map: Record<string, PlayType> = { "直选": "direct", "组选三": "group3", "组选六": "group6" };
+    return { playType: map[m[1]], rest: line.slice(m[0].length) };
+  };
 
   lines.forEach((line, idx) => {
     const lineNo = idx + 1;
-    const plusMatch = line.match(/\+/);
+    const { playType, rest } = playTypeMarker(line);
+    const isGroup = playType === "group3" || playType === "group6";
+    const plusMatch = rest.match(/\+/);
 
     if (plusMatch) {
-      const [frontPart, backPart] = line.split("+");
+      const [frontPart, backPart] = rest.split("+");
       const frontRes = normalizeNumberGroup(frontPart, rule.frontLabel, rule.frontMax, frontMin);
       if (frontRes.error) {
         errors.push(`第${lineNo}行: ${frontRes.error}`);
@@ -89,9 +99,9 @@ const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax
         errors.push(`第${lineNo}行: ${rule.backLabel}号码不足，至少需要 ${rule.backCount} 个`);
         return;
       }
-      tickets.push({ front: frontRes.nums, back: backRes.nums });
+      tickets.push({ front: frontRes.nums, back: backRes.nums, playType });
     } else {
-      const tokens = line
+      const tokens = rest
         .split(/[\s,，、;；]+/)
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
@@ -115,7 +125,7 @@ const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax
         errors.push(`第${lineNo}行: 无 + 分隔时仅支持单式，${rule.backLabel}号码多于 ${rule.backCount} 个，请用 + 分隔前后区`);
         return;
       }
-      tickets.push({ front: frontRes.nums, back: backRes.nums });
+      tickets.push({ front: frontRes.nums, back: backRes.nums, playType: isGroup ? playType : undefined });
     }
   });
 
@@ -204,7 +214,7 @@ export default function MatchResultPage() {
       const mapped = parsed
         .filter((t: unknown): t is RandomTicket =>
           !!t && typeof t === "object" && Array.isArray((t as RandomTicket).front) && Array.isArray((t as RandomTicket).back))
-        .map((t: RandomTicket) => ({ front: t.front, back: t.back }));
+        .map((t: RandomTicket) => ({ front: t.front, back: t.back, playType: t.playType }));
       return mapped.length > 0 ? mapped : empty;
     } catch {
       return empty;
@@ -246,8 +256,12 @@ export default function MatchResultPage() {
         const front = t.front.filter((n) => n !== "");
         const back = t.back.filter((n) => n !== "");
         if (front.length === 0 && back.length === 0) return "";
-        if (hasBack) return `${front.join(" ")} + ${back.join(" ")}`;
-        return front.join(" ");
+        // 排列三组选玩法行首加标记
+        const prefix = (t.playType === "group3" || t.playType === "group6")
+          ? (t.playType === "group3" ? "[组选三] " : "[组选六] ")
+          : "";
+        if (hasBack) return `${prefix}${front.join(" ")} + ${back.join(" ")}`;
+        return `${prefix}${front.join(" ")}`;
       })
       .filter((l) => l.length > 0);
     setImportText(lines.join("\n"));
@@ -256,6 +270,13 @@ export default function MatchResultPage() {
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
     // 按位彩种：每位都必须选了 1 个数字（顺序即位置，不可缺位）
     if (rule.positionBased) {
+      // 组选玩法（排列三组三/组六）：组三选 2 个不同数字，组六选 frontCount 个不同数字
+      if (ticket.playType === "group3") {
+        return new Set(ticket.front.filter((n) => n !== "")).size >= 2;
+      }
+      if (ticket.playType === "group6") {
+        return ticket.front.filter((n) => n !== "").length >= rule.frontCount;
+      }
       const frontOk = Array.from({ length: rule.frontCount }, (_, i) => i)
         .every((i) => !!ticket.front[i]);
       const backOk = rule.backCount > 0
@@ -274,8 +295,8 @@ export default function MatchResultPage() {
     return data.items.slice(0, count);
   }, [data, selectedRange]);
 
-  const getPrizeLevel = useCallback((frontMatch: number, backMatch: number) => {
-    const tier = getPrizeTierByMatch(type, frontMatch, backMatch);
+  const getPrizeLevel = useCallback((frontMatch: number, backMatch: number, playType?: PlayType) => {
+    const tier = getPrizeTierByMatch(type, frontMatch, backMatch, playType);
     if (!tier) return null;
     return { level: tier.level, ...PRIZE_COLORS[tier.level] };
   }, [type, PRIZE_COLORS]);
@@ -291,7 +312,7 @@ export default function MatchResultPage() {
     const results = filteredData.map((item) => {
       // 按位彩种逐位对位比较；普通彩种集合交集（matchTicket 内部区分）
       const { frontMatch, backMatch } = matchTicket(type, ticket, item);
-      const prize = getPrizeLevel(frontMatch, backMatch);
+      const prize = getPrizeLevel(frontMatch, backMatch, ticket.playType);
       return {
         term: item.term,
         date: item.draw_time,
@@ -339,6 +360,11 @@ export default function MatchResultPage() {
   /** 新建一注空选号：按位彩种用定长数组（每位初始为空串），普通彩种用空数组 */
   const newEmptyTicket = useCallback((): LotteryTicket => {
     if (rule.positionBased) {
+      // 组选玩法用空数组（不分位置），直选用定长数组
+      if (rule.name === "排列三") {
+        // 默认直选；组选由玩法切换器设置 playType 后用空数组
+        return { front: Array.from({ length: rule.frontCount }, () => ""), back: [], playType: "direct" };
+      }
       return {
         front: Array.from({ length: rule.frontCount }, () => ""),
         back: Array.from({ length: rule.backCount }, () => ""),
@@ -395,6 +421,33 @@ export default function MatchResultPage() {
     }));
   };
 
+  /** 切换某注的玩法（排列三直选/组选三/组选六），切换时清空已选号码 */
+  const handleSetPlayType = (ticketIndex: number, playType: PlayType) => {
+    setCustomTickets(customTickets.map((ticket, idx) => {
+      if (idx !== ticketIndex) return ticket;
+      // 组选用空数组（不分位置），直选用定长数组
+      const front = playType === "direct"
+        ? Array.from({ length: rule.frontCount }, () => "")
+        : [];
+      return { front, back: [], playType };
+    }));
+  };
+
+  /** 组选玩法选号：点击号码加入/移除（不分位置，组三最多2个不同数字，组六选满 frontCount 个） */
+  const handleToggleGroupNumber = (ticketIndex: number, number: string) => {
+    setCustomTickets(customTickets.map((ticket, idx) => {
+      if (idx !== ticketIndex) return ticket;
+      const arr = ticket.front.filter((n) => n !== "");
+      if (arr.includes(number)) {
+        return { ...ticket, front: arr.filter((n) => n !== number) };
+      }
+      // 组三最多 2 个不同数字，组六最多 frontCount 个
+      const maxCount = ticket.playType === "group3" ? 2 : rule.frontCount;
+      if (arr.length >= maxCount) return ticket;
+      return { ...ticket, front: [...arr, number] };
+    }));
+  };
+
   /** 杀号选号：点击号码加入/移除杀号池（再次点击同一号码则取消） */
   const handleToggleKilled = (numType: "front" | "back", number: string) => {
     if (numType === "front") {
@@ -418,10 +471,16 @@ export default function MatchResultPage() {
     : undefined;
 
   const handleGenerateTicket = (ticketIndex: number) => {
+    // 当前注的玩法（组选模式下保持 playType）
+    const playType = customTickets[ticketIndex]?.playType;
+    // 组选玩法：生成 3 个数字（允许重复），保留 playType
+    const genOne = (): LotteryTicket => {
+      const t = generateTicket(type, killExclude);
+      return { front: t.front, back: t.back, playType };
+    };
     // 开关关闭：单次随机，行为不变
     if (!keepRandomUntilPrize) {
-      const t = generateTicket(type, killExclude);
-      setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? { front: t.front, back: t.back } : ticket)));
+      setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? genOne() : ticket)));
       setGenStatus(null);
       return;
     }
@@ -444,12 +503,12 @@ export default function MatchResultPage() {
 
       while (attempts < maxAttempts) {
         attempts++;
-        const candidate = generateTicket(type, killExclude);
+        const candidate = genOne();
         let candBestIdx = prizeLevels.length;
         for (let i = 0; i < filteredData.length; i++) {
           const item = filteredData[i];
           const { frontMatch: fm, backMatch: bm } = matchTicket(type, candidate, item);
-          const tier = getPrizeTierByMatch(type, fm, bm);
+          const tier = getPrizeTierByMatch(type, fm, bm, playType);
           if (tier) {
             const idx = prizeLevels.indexOf(tier.level);
             if (idx < candBestIdx) candBestIdx = idx;
@@ -458,7 +517,7 @@ export default function MatchResultPage() {
         }
         if (candBestIdx < bestIdx) {
           bestIdx = candBestIdx;
-          bestTicket = { front: candidate.front, back: candidate.back };
+          bestTicket = candidate;
         }
         if (candBestIdx <= targetIdx) {
           hit = true;
@@ -466,7 +525,7 @@ export default function MatchResultPage() {
         }
       }
 
-      const finalTicket: LotteryTicket = bestTicket ?? (() => { const t = generateTicket(type, killExclude); return { front: t.front, back: t.back }; })();
+      const finalTicket: LotteryTicket = bestTicket ?? genOne();
       setCustomTickets((prev) => prev.map((ticket, idx) => (idx === ticketIndex ? finalTicket : ticket)));
       setGenerating(false);
       setGenStatus(
@@ -1162,7 +1221,11 @@ export default function MatchResultPage() {
                             ) : (
                               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                 {rule.positionBased
-                                  ? `请为每位数字各选 1 个（${rule.frontLabel}${hasBack ? ` + ${rule.backLabel}` : ""}）`
+                                  ? (ticket.playType === "group3")
+                                    ? `请选 2 个不同数字（不分位置）`
+                                    : (ticket.playType === "group6")
+                                      ? `请选 ${rule.frontCount} 个数字（不分位置）`
+                                      : `请为每位数字各选 1 个（${rule.frontLabel}${hasBack ? ` + ${rule.backLabel}` : ""}）`
                                   : `请选择至少${rule.frontCount}个${rule.frontLabel}${hasBack ? `和至少${rule.backCount}个${rule.backLabel}` : ""}`}
                               </span>
                             )}
@@ -1224,79 +1287,143 @@ export default function MatchResultPage() {
                           </div>
                         ) : rule.positionBased ? (
                           <>
-                            {/* 按位选号：每位独立选 1 个数字，顺序即位置，不可排序 */}
-                            <div className="mb-3 space-y-2">
-                              <div className="mb-1 flex items-center gap-2">
-                                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                  {rule.frontLabel}（每位选 1 个，共 {rule.frontCount} 位，{frontMin}-{rule.frontMax}）
-                                </span>
-                              </div>
-                              {Array.from({ length: rule.frontCount }, (_, pos) => (
-                                <div key={pos} className="flex items-center gap-2">
-                                  <span className="w-9 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                                    第{pos + 1}位
-                                  </span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => {
-                                      const num = String(i + frontMin).padStart(2, "0");
-                                      const selected = ticket.front[pos] === num;
-                                      return (
-                                        <button
-                                          key={num}
-                                          type="button"
-                                          className={cn(
-                                            "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-mono font-medium transition-colors",
-                                            selected
-                                              ? "bg-crimson text-white"
-                                              : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
-                                          )}
-                                          onClick={() => handlePickPosition(ticketIdx, "front", pos, num)}
-                                        >
-                                          {Number(num)}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
+                            {/* 排列三玩法切换器：直选 / 组选三 / 组选六 */}
+                            {rule.name === "排列三" && (
+                              <div className="mb-3">
+                                <div className="seg inline-flex">
+                                  {([
+                                    { v: "direct", l: "直选" },
+                                    { v: "group3", l: "组选三" },
+                                    { v: "group6", l: "组选六" },
+                                  ] as const).map((opt) => (
+                                    <button
+                                      key={opt.v}
+                                      type="button"
+                                      className={cn("seg-item", (ticket.playType ?? "direct") === opt.v && "seg-item-active")}
+                                      onClick={() => handleSetPlayType(ticketIdx, opt.v)}
+                                    >
+                                      {opt.l}
+                                    </button>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
+                                {(ticket.playType === "group3" || ticket.playType === "group6") && (
+                                  <p className="mt-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                    {ticket.playType === "group3" ? "组选三：开奖含对子时，所选 2 个不同数字（不分位置）与开奖相同即中 346 元" : "组选六：开奖三位互异时，所选 3 个数字（不分位置）与开奖相同即中 173 元"}
+                                  </p>
+                                )}
+                              </div>
+                            )}
 
-                            {hasBack && (
-                              <div className="space-y-2">
-                                <div className="mb-1 flex items-center gap-2">
+                            {(ticket.playType === "group3" || ticket.playType === "group6") ? (
+                              /* 组选选号：选数字（不分位置） */
+                              <div className="mb-3">
+                                <div className="mb-2 flex items-center gap-2">
                                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                    {rule.backLabel}（选 1 个，{backMin}-{rule.backMax}）
+                                    {rule.frontLabel}（{ticket.playType === "group3" ? `选 2 个不同数字，不分位置，${frontMin}-${rule.frontMax}` : `选 ${rule.frontCount} 个，不分位置，${frontMin}-${rule.frontMax}`}）
                                   </span>
                                 </div>
-                                {Array.from({ length: rule.backCount }, (_, pos) => (
-                                  <div key={pos} className="flex items-center gap-2">
-                                    <span className="w-9 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                                      {rule.backLabel}
-                                    </span>
-                                    <div className="flex flex-wrap gap-1">
-                                      {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => {
-                                        const num = String(i + backMin).padStart(2, "0");
-                                        const selected = ticket.back[pos] === num;
-                                        return (
-                                          <button
-                                            key={num}
-                                            type="button"
-                                            className={cn(
-                                              "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-mono font-medium transition-colors",
-                                              selected
-                                                ? "bg-indigo text-white"
-                                                : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
-                                            )}
-                                            onClick={() => handlePickPosition(ticketIdx, "back", pos, num)}
-                                          >
-                                            {Number(num)}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ))}
+                                <div className="flex flex-wrap gap-1">
+                                  {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => {
+                                    const num = String(i + frontMin).padStart(2, "0");
+                                    const selected = ticket.front.includes(num);
+                                    return (
+                                      <button
+                                        key={num}
+                                        type="button"
+                                        className={cn(
+                                          "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                                          selected
+                                            ? "bg-crimson text-white"
+                                            : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
+                                        )}
+                                        onClick={() => handleToggleGroupNumber(ticketIdx, num)}
+                                      >
+                                        {Number(num)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <p className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                  已选 {ticket.front.filter((n) => n !== "").length}/{ticket.playType === "group3" ? 2 : rule.frontCount}
+                                </p>
                               </div>
+                            ) : (
+                              <>
+                                {/* 直选按位选号：每位独立选 1 个数字，顺序即位置，不可排序 */}
+                                <div className="mb-3 space-y-2">
+                                  <div className="mb-1 flex items-center gap-2">
+                                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                      {rule.frontLabel}（每位选 1 个，共 {rule.frontCount} 位，{frontMin}-{rule.frontMax}）
+                                    </span>
+                                  </div>
+                                  {Array.from({ length: rule.frontCount }, (_, pos) => (
+                                    <div key={pos} className="flex items-center gap-2">
+                                      <span className="w-9 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                                        第{pos + 1}位
+                                      </span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {Array.from({ length: rule.frontMax - frontMin + 1 }, (_, i) => {
+                                          const num = String(i + frontMin).padStart(2, "0");
+                                          const selected = ticket.front[pos] === num;
+                                          return (
+                                            <button
+                                              key={num}
+                                              type="button"
+                                              className={cn(
+                                                "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-mono font-medium transition-colors",
+                                                selected
+                                                  ? "bg-crimson text-white"
+                                                  : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
+                                              )}
+                                              onClick={() => handlePickPosition(ticketIdx, "front", pos, num)}
+                                            >
+                                              {Number(num)}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {hasBack && (
+                                  <div className="space-y-2">
+                                    <div className="mb-1 flex items-center gap-2">
+                                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                        {rule.backLabel}（选 1 个，{backMin}-{rule.backMax}）
+                                      </span>
+                                    </div>
+                                    {Array.from({ length: rule.backCount }, (_, pos) => (
+                                      <div key={pos} className="flex items-center gap-2">
+                                        <span className="w-9 shrink-0 text-right text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                                          {rule.backLabel}
+                                        </span>
+                                        <div className="flex flex-wrap gap-1">
+                                          {Array.from({ length: rule.backMax - backMin + 1 }, (_, i) => {
+                                            const num = String(i + backMin).padStart(2, "0");
+                                            const selected = ticket.back[pos] === num;
+                                            return (
+                                              <button
+                                                key={num}
+                                                type="button"
+                                                className={cn(
+                                                  "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-mono font-medium transition-colors",
+                                                  selected
+                                                    ? "bg-indigo text-white"
+                                                    : "bg-ink-800 text-zinc-600 hover:bg-ink-700 dark:text-zinc-300",
+                                                )}
+                                                onClick={() => handlePickPosition(ticketIdx, "back", pos, num)}
+                                              >
+                                                {Number(num)}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </>
                         ) : (
@@ -1538,7 +1665,11 @@ export default function MatchResultPage() {
                                       number={n}
                                       variant="front"
                                       size="sm"
-                                      highlight={rule.positionBased ? ticket.front[ni] === n : ticket.front.includes(n)}
+                                      highlight={rule.positionBased
+                                        ? (ticket.playType === "group3" || ticket.playType === "group6")
+                                          ? ticket.front.includes(n)
+                                          : ticket.front[ni] === n
+                                        : ticket.front.includes(n)}
                                     />
                                   ))}
                                   {hasBackDraw && <span className="mx-2 h-3 w-px bg-ink-600" />}
