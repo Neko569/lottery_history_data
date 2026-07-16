@@ -245,8 +245,11 @@ const qxcConfig: LotteryConfig = {
 };
 
 /** 排列三配置（体彩，3 位数字 0-9，按位匹配）
- *  仅保留直选玩法（每位数字与位置均需对位相同）；组三/组六为组选模式，
- *  本应用选号页只支持直选，故不纳入奖级表。 */
+ *  支持直选 / 组选三 / 组选六三种玩法：
+ *  - 直选：3 位数字与位置均需对位相同，奖金 1,040 元
+ *  - 组选三：开奖含对子（两同一异），玩家所选 3 个数字（不分位置）与开奖数字相同即中，346 元
+ *  - 组选六：开奖三位互不相同，玩家所选 3 个数字（不分位置）与开奖数字相同即中，173 元
+ *  组选玩法下，奖级随开奖号码形态动态判定（同一注可能中组三或组六）。 */
 const plsConfig: LotteryConfig = {
   rule: {
     frontCount: 3,
@@ -261,7 +264,9 @@ const plsConfig: LotteryConfig = {
     positionBased: true,
   },
   prizeTable: [
-    { level: "一等奖", conditions: [{ front: 3, back: 0 }], bonus: "1,040 元（直选）", kind: "fixed" },
+    { level: "直选", conditions: [{ front: 3, back: 0, playType: "direct" }], bonus: "1,040 元", kind: "fixed" },
+    { level: "组选三", conditions: [{ front: 3, back: 0, playType: "group3" }], bonus: "346 元", kind: "fixed", note: "开奖号码含对子（两同一异）时适用" },
+    { level: "组选六", conditions: [{ front: 3, back: 0, playType: "group6" }], bonus: "173 元", kind: "fixed", note: "开奖号码三位互不相同时适用" },
   ],
   remoteJsonUrl: "https://raw.githubusercontent.com/Neko569/get_lottery_data/main/data/pls_history.json",
   jsdelivrJsonUrl: "https://cdn.jsdelivr.net/gh/Neko569/get_lottery_data@main/data/pls_history.json",
@@ -269,7 +274,7 @@ const plsConfig: LotteryConfig = {
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "体彩", gradientFrom: "#2563EB", gradientTo: "#1D4ED8", rangeColor: "#FFD700" },
   prizeColors: PRIZE_LEVEL_COLORS,
-  ruleNote: "排列三共 3 位号码，每位 0-9，直选 3 位全部对位命中即 1,040 元。组三/组六为组选玩法，本应用仅支持直选，未纳入奖级表。",
+  ruleNote: "排列三共 3 位号码，每位 0-9。直选 3 位全部对位命中 1,040 元；组选三/六为组选玩法（不分位置），组选三适用于开奖含对子（346 元），组选六适用于开奖三位互异（173 元）。",
   pickGridCols: { front: "grid-cols-5 sm:grid-cols-10", back: "grid-cols-6" },
   category: "sports",
 };
@@ -440,9 +445,17 @@ export function getPrizeLevels(type: LotteryType): string[] {
   return LOTTERIES[type].prizeTable.map((t) => t.level);
 }
 
-/** 根据命中数判定奖级；未中奖返回 null */
-export function getPrizeTierByMatch(type: LotteryType, frontMatch: number, backMatch: number): PrizeTier | null {
-  return LOTTERIES[type].prizeTable.find((t) => t.conditions.some((c) => c.front === frontMatch && c.back === backMatch)) ?? null;
+/** 根据命中数判定奖级；未中奖返回 null。
+ *  playType：排列三组选玩法时传入，用于匹配带 playType 条件的奖级条目 */
+export function getPrizeTierByMatch(
+  type: LotteryType,
+  frontMatch: number,
+  backMatch: number,
+  playType?: import("@/types/lottery").PlayType,
+): PrizeTier | null {
+  return LOTTERIES[type].prizeTable.find((t) =>
+    t.conditions.some((c) => c.front === frontMatch && c.back === backMatch && (c.playType ?? "direct") === (playType ?? "direct")),
+  ) ?? null;
 }
 
 /**
@@ -450,14 +463,30 @@ export function getPrizeTierByMatch(type: LotteryType, frontMatch: number, backM
  *  - 普通彩种（大乐透/双色球/七乐彩/快乐八）：集合交集命中数
  *  - 按位彩种（排列三/排列五/七星彩/福彩3D）：每位数字与位置均需对位相同才算命中
  *    ticket.front[i] 为玩家选的第 i 位数字（顺序即位置，不可排序）
+ *  - playType：排列三组选玩法（group3/group6）时，按排序后集合比较，
+ *    frontMatch 为「排序后完全相等」时返回 3，否则 0；组选三/六的区分由奖级表的 playType 条件决定
  */
 export function matchTicket(
   type: LotteryType,
-  ticket: { front: string[]; back: string[] },
+  ticket: { front: string[]; back: string[]; playType?: import("@/types/lottery").PlayType },
   draw: LotteryItem,
 ): { frontMatch: number; backMatch: number } {
   const rule = LOTTERY_RULES[type];
+  const playType = ticket.playType ?? "direct";
   if (rule.positionBased) {
+    // 组选玩法（排列三）：排序后集合相等即全中，frontMatch=3；否则 0
+    //   组选三要求开奖含对子（去重后 2 个值），组选六要求开奖三位互异（去重后 3 个值）
+    //   形态不符则不算命中（frontMatch=0），避免组三/组六误判
+    if (playType === "group3" || playType === "group6") {
+      const sortedTicket = [...ticket.front].filter((n) => n !== "").sort();
+      const sortedDraw = [...draw.front_numbers].sort();
+      const setEq = sortedTicket.length === rule.frontCount && sortedTicket.every((n, i) => n === sortedDraw[i]);
+      if (!setEq) return { frontMatch: 0, backMatch: 0 };
+      const distinct = new Set(draw.front_numbers).size;
+      const formOk = playType === "group3" ? distinct === 2 : distinct === 3;
+      return { frontMatch: formOk ? 3 : 0, backMatch: 0 };
+    }
+    // 直选：逐位严格对位比较
     let frontMatch = 0;
     for (let i = 0; i < rule.frontCount; i++) {
       if (ticket.front[i] != null && ticket.front[i] === draw.front_numbers[i]) frontMatch++;
