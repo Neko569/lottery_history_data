@@ -270,8 +270,11 @@ export default function MatchResultPage() {
   const isTicketComplete = (ticket: LotteryTicket): boolean => {
     // 按位彩种：每位都必须选了 1 个数字（顺序即位置，不可缺位）
     if (rule.positionBased) {
-      // 组选玩法（排列三组三/组六）：选满 frontCount 个数字（不分位置），允许重复
-      if (ticket.playType === "group3" || ticket.playType === "group6") {
+      // 组选玩法（排列三组三/组六）：组三选 2 个不同数字，组六选 frontCount 个不同数字
+      if (ticket.playType === "group3") {
+        return new Set(ticket.front.filter((n) => n !== "")).size >= 2;
+      }
+      if (ticket.playType === "group6") {
         return ticket.front.filter((n) => n !== "").length >= rule.frontCount;
       }
       const frontOk = Array.from({ length: rule.frontCount }, (_, i) => i)
@@ -430,7 +433,7 @@ export default function MatchResultPage() {
     }));
   };
 
-  /** 组选玩法选号：点击号码加入/移除（不分位置，允许重复，选满 frontCount 个） */
+  /** 组选玩法选号：点击号码加入/移除（不分位置，组三最多2个不同数字，组六选满 frontCount 个） */
   const handleToggleGroupNumber = (ticketIndex: number, number: string) => {
     setCustomTickets(customTickets.map((ticket, idx) => {
       if (idx !== ticketIndex) return ticket;
@@ -438,7 +441,9 @@ export default function MatchResultPage() {
       if (arr.includes(number)) {
         return { ...ticket, front: arr.filter((n) => n !== number) };
       }
-      if (arr.length >= rule.frontCount) return ticket;
+      // 组三最多 2 个不同数字，组六最多 frontCount 个
+      const maxCount = ticket.playType === "group3" ? 2 : rule.frontCount;
+      if (arr.length >= maxCount) return ticket;
       return { ...ticket, front: [...arr, number] };
     }));
   };
@@ -1216,9 +1221,11 @@ export default function MatchResultPage() {
                             ) : (
                               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                                 {rule.positionBased
-                                  ? (ticket.playType === "group3" || ticket.playType === "group6")
-                                    ? `请选 ${rule.frontCount} 个数字（不分位置）`
-                                    : `请为每位数字各选 1 个（${rule.frontLabel}${hasBack ? ` + ${rule.backLabel}` : ""}）`
+                                  ? (ticket.playType === "group3")
+                                    ? `请选 2 个不同数字（不分位置）`
+                                    : (ticket.playType === "group6")
+                                      ? `请选 ${rule.frontCount} 个数字（不分位置）`
+                                      : `请为每位数字各选 1 个（${rule.frontLabel}${hasBack ? ` + ${rule.backLabel}` : ""}）`
                                   : `请选择至少${rule.frontCount}个${rule.frontLabel}${hasBack ? `和至少${rule.backCount}个${rule.backLabel}` : ""}`}
                               </span>
                             )}
@@ -1301,18 +1308,18 @@ export default function MatchResultPage() {
                                 </div>
                                 {(ticket.playType === "group3" || ticket.playType === "group6") && (
                                   <p className="mt-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
-                                    {ticket.playType === "group3" ? "组选三：开奖含对子时，所选 3 个数字（不分位置）与开奖相同即中 346 元" : "组选六：开奖三位互异时，所选 3 个数字（不分位置）与开奖相同即中 173 元"}
+                                    {ticket.playType === "group3" ? "组选三：开奖含对子时，所选 2 个不同数字（不分位置）与开奖相同即中 346 元" : "组选六：开奖三位互异时，所选 3 个数字（不分位置）与开奖相同即中 173 元"}
                                   </p>
                                 )}
                               </div>
                             )}
 
                             {(ticket.playType === "group3" || ticket.playType === "group6") ? (
-                              /* 组选选号：选 3 个数字（不分位置，允许重复） */
+                              /* 组选选号：选数字（不分位置） */
                               <div className="mb-3">
                                 <div className="mb-2 flex items-center gap-2">
                                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                    {rule.frontLabel}（选 {rule.frontCount} 个，不分位置，{frontMin}-{rule.frontMax}）
+                                    {rule.frontLabel}（{ticket.playType === "group3" ? `选 2 个不同数字，不分位置，${frontMin}-${rule.frontMax}` : `选 ${rule.frontCount} 个，不分位置，${frontMin}-${rule.frontMax}`}）
                                   </span>
                                 </div>
                                 <div className="flex flex-wrap gap-1">
@@ -1337,7 +1344,7 @@ export default function MatchResultPage() {
                                   })}
                                 </div>
                                 <p className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
-                                  已选 {ticket.front.filter((n) => n !== "").length}/{rule.frontCount}
+                                  已选 {ticket.front.filter((n) => n !== "").length}/{ticket.playType === "group3" ? 2 : rule.frontCount}
                                 </p>
                               </div>
                             ) : (

@@ -274,7 +274,7 @@ const plsConfig: LotteryConfig = {
   backBallColors: { from: "#818cf8", to: "#4f46e5" },
   logo: { topText: "体彩", gradientFrom: "#2563EB", gradientTo: "#1D4ED8", rangeColor: "#FFD700" },
   prizeColors: PRIZE_LEVEL_COLORS,
-  ruleNote: "排列三共 3 位号码，每位 0-9。直选 3 位全部对位命中 1,040 元；组选三/六为组选玩法（不分位置），组选三适用于开奖含对子（346 元），组选六适用于开奖三位互异（173 元）。",
+  ruleNote: "排列三共 3 位号码，每位 0-9。直选 3 位全部对位命中 1,040 元；组选三为开奖含对子时，选 2 个不同数字（不分位置）与开奖相同即中 346 元；组选六为开奖三位互异时，选 3 个数字（不分位置）与开奖相同即中 173 元。",
   pickGridCols: { front: "grid-cols-5 sm:grid-cols-10", back: "grid-cols-6" },
   category: "sports",
 };
@@ -474,17 +474,24 @@ export function matchTicket(
   const rule = LOTTERY_RULES[type];
   const playType = ticket.playType ?? "direct";
   if (rule.positionBased) {
-    // 组选玩法（排列三）：排序后集合相等即全中，frontMatch=3；否则 0
-    //   组选三要求开奖含对子（去重后 2 个值），组选六要求开奖三位互异（去重后 3 个值）
+    // 组选玩法（排列三）：
+    //   组选三：玩家选 2 个不同数字，开奖含对子（去重2值），开奖去重集合 == 玩家选号集合
+    //   组选六：玩家选 3 个不同数字，开奖三位互异（去重3值），排序后集合相等
     //   形态不符则不算命中（frontMatch=0），避免组三/组六误判
-    if (playType === "group3" || playType === "group6") {
+    if (playType === "group3") {
+      const ticketSet = new Set(ticket.front.filter((n) => n !== ""));
+      const drawSet = new Set(draw.front_numbers);
+      if (drawSet.size !== 2) return { frontMatch: 0, backMatch: 0 };
+      const setEq = ticketSet.size === 2 && [...drawSet].every((n) => ticketSet.has(n));
+      return { frontMatch: setEq ? 3 : 0, backMatch: 0 };
+    }
+    if (playType === "group6") {
       const sortedTicket = [...ticket.front].filter((n) => n !== "").sort();
       const sortedDraw = [...draw.front_numbers].sort();
       const setEq = sortedTicket.length === rule.frontCount && sortedTicket.every((n, i) => n === sortedDraw[i]);
       if (!setEq) return { frontMatch: 0, backMatch: 0 };
       const distinct = new Set(draw.front_numbers).size;
-      const formOk = playType === "group3" ? distinct === 2 : distinct === 3;
-      return { frontMatch: formOk ? 3 : 0, backMatch: 0 };
+      return { frontMatch: distinct === 3 ? 3 : 0, backMatch: 0 };
     }
     // 直选：逐位严格对位比较
     let frontMatch = 0;
