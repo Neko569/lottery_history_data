@@ -31,6 +31,22 @@ interface ParseResult {
   errors: string[];
 }
 
+/** 单期匹配结果条目：单式与复式共用，复式额外携带子注统计 */
+interface MatchEntry {
+  term: string | number;
+  date: string;
+  frontMatch: number;
+  backMatch: number;
+  total: number;
+  prize: { level: string; bg: string; text: string; border: string } | null;
+  prizeLevel: string | null;
+  item: LotteryItem;
+  /** 复式：本期中奖子注数（单式为 undefined） */
+  subBetWins?: number;
+  /** 复式：本期按奖级分布（单式为 undefined） */
+  breakdown?: { level: string; count: number }[];
+}
+
 /** 将一段号码字符串解析为补零后的号码数组，非法时返回 error */
 const normalizeNumberGroup = (
   str: string,
@@ -303,14 +319,60 @@ export default function MatchResultPage() {
 
   const calculateMatches = useCallback((ticket: LotteryTicket) => {
     const filteredData = getFilteredData();
-    if (filteredData.length === 0) return { total: 0, matches: [], maxMatch: 0, prizeLevel: null };
+    if (filteredData.length === 0) return { total: 0, matches: [] as MatchEntry[], maxMatch: 0, prizeLevel: null };
     // 未选号不计奖：快乐八七等奖为「全不中(0中)」，空票会误命中，需跳过
     if (ticket.front.length === 0 && ticket.back.length === 0) {
-      return { total: 0, matches: [], maxMatch: 0, prizeLevel: null };
+      return { total: 0, matches: [] as MatchEntry[], maxMatch: 0, prizeLevel: null };
     }
 
-    const results = filteredData.map((item) => {
-      // 按位彩种逐位对位比较；普通彩种集合交集（matchTicket 内部区分）
+    // 复式（仅非按位彩种）：展开为所有单式子注逐注判定，统计真实中奖注数
+    // 按位彩种（排列三/五/七星彩/3D）不支持复式选号，沿用整注匹配
+    const compound = !rule.positionBased && isCompoundTicket(ticket, rule);
+    const frontCombos = compound ? enumerateCombinations(ticket.front, rule.frontCount) : null;
+    const backCombos = compound ? (hasBack ? enumerateCombinations(ticket.back, rule.backCount) : [[]]) : null;
+
+    const results: MatchEntry[] = filteredData.map((item) => {
+      if (compound && frontCombos && backCombos) {
+        let subBetWins = 0;
+        let bestPrize: MatchEntry["prize"] = null;
+        let bestPrizeIdx = prizeLevels.length;
+        const breakdownMap: Record<string, number> = {};
+        let maxFront = 0;
+        let maxBack = 0;
+        for (const fc of frontCombos) {
+          for (const bc of backCombos) {
+            const { frontMatch, backMatch } = matchTicket(type, { front: fc, back: bc, playType: ticket.playType }, item);
+            if (frontMatch > maxFront) maxFront = frontMatch;
+            if (backMatch > maxBack) maxBack = backMatch;
+            const prize = getPrizeLevel(frontMatch, backMatch, ticket.playType);
+            if (prize) {
+              subBetWins++;
+              breakdownMap[prize.level] = (breakdownMap[prize.level] || 0) + 1;
+              const idx = prizeLevels.indexOf(prize.level);
+              if (idx < bestPrizeIdx) {
+                bestPrizeIdx = idx;
+                bestPrize = prize;
+              }
+            }
+          }
+        }
+        const breakdown = Object.entries(breakdownMap)
+          .map(([level, count]) => ({ level, count }))
+          .sort((a, b) => prizeLevels.indexOf(a.level) - prizeLevels.indexOf(b.level));
+        return {
+          term: item.term,
+          date: item.draw_time,
+          frontMatch: maxFront,
+          backMatch: maxBack,
+          total: maxFront + maxBack,
+          prize: bestPrize,
+          prizeLevel: bestPrize?.level || null,
+          item,
+          subBetWins,
+          breakdown,
+        };
+      }
+      // 单式：按整注匹配
       const { frontMatch, backMatch } = matchTicket(type, ticket, item);
       const prize = getPrizeLevel(frontMatch, backMatch, ticket.playType);
       return {
@@ -337,11 +399,15 @@ export default function MatchResultPage() {
 
     const maxMatch = matches.length > 0 ? matches[0].total : 0;
     const bestPrize = matches.length > 0 ? matches[0].prizeLevel : null;
+    // 复式 total = 所有期中奖子注总数；单式 total = 中奖期数
+    const total = compound
+      ? matches.reduce((sum, m) => sum + (m.subBetWins ?? 0), 0)
+      : matches.length;
 
-    return { total: matches.length, matches, maxMatch, prizeLevel: bestPrize };
-  }, [getFilteredData, getPrizeLevel, prizeLevels, type]);
+    return { total, matches, maxMatch, prizeLevel: bestPrize };
+  }, [getFilteredData, getPrizeLevel, prizeLevels, type, rule, hasBack]);
 
-  // 复式不再展开为所有组合，直接以一整注匹配历史，避免注数过多导致卡顿
+  // 复式展开为所有单式子注逐注判定，统计真实中奖注数（见 calculateMatches）
   // memo：仅当 customTickets / 数据范围 / 彩种变化时重算，避免每渲染遍历数千期
   const totalMatches = useMemo(
     () => (customTickets.length > 0 ? customTickets.map(ticket => calculateMatches(ticket)) : []),
@@ -599,6 +665,28 @@ export default function MatchResultPage() {
       result *= (n - i) / (i + 1);
     }
     return Math.round(result);
+  };
+
+  /** 枚举从 nums 中选 k 个的所有组合（保持原相对顺序），用于复式展开为单式子注 */
+  const enumerateCombinations = (nums: string[], k: number): string[][] => {
+    if (k <= 0) return [[]];
+    if (k > nums.length) return [];
+    if (k === nums.length) return [nums.slice()];
+    const result: string[][] = [];
+    const combo: string[] = [];
+    const backtrack = (start: number) => {
+      if (combo.length === k) {
+        result.push(combo.slice());
+        return;
+      }
+      for (let i = start; i < nums.length; i++) {
+        combo.push(nums[i]);
+        backtrack(i + 1);
+        combo.pop();
+      }
+    };
+    backtrack(0);
+    return result;
   };
 
   return (
@@ -1567,7 +1655,7 @@ export default function MatchResultPage() {
                   </div>
 
                   {customTickets.map((ticket, ticketIdx) => {
-                    const compound = isCompoundTicket(ticket, rule);
+                    const compound = !rule.positionBased && isCompoundTicket(ticket, rule);
                     const matchResult = totalMatches[ticketIdx];
                     if (!matchResult || matchResult.matches.length === 0) return null;
 
@@ -1601,7 +1689,7 @@ export default function MatchResultPage() {
                                 </span>
                               )}
                               <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-300">
-                                中奖{matchResult.total}次
+                                中奖{matchResult.total}{compound ? "注" : "次"}
                               </span>
                               {isMatchCollapsed ? (
                                 <ChevronDown className="h-4 w-4 text-zinc-500" />
@@ -1651,10 +1739,24 @@ export default function MatchResultPage() {
                                         </span>
                                       )}
                                     </div>
-                                    {prize && (
-                                      <span className={cn("font-bold text-sm px-2 py-0.5 rounded", prize.bg, prize.text)}>
-                                        {prize.level}
-                                      </span>
+                                    {compound && m.breakdown && m.breakdown.length > 0 ? (
+                                      <div className="flex items-center gap-1">
+                                        <span className="rounded-full bg-crimson/15 px-2 py-0.5 text-[10px] font-medium text-crimson whitespace-nowrap">
+                                          本期{m.subBetWins}注
+                                        </span>
+                                        {m.breakdown.map((b) => (
+                                          <span key={b.level} className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap",
+                                            PRIZE_COLORS[b.level]?.bg, PRIZE_COLORS[b.level]?.text)}>
+                                            {b.level}×{b.count}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      prize && (
+                                        <span className={cn("font-bold text-sm px-2 py-0.5 rounded", prize.bg, prize.text)}>
+                                          {prize.level}
+                                        </span>
+                                      )
                                     )}
                                   </div>
                                 </div>
