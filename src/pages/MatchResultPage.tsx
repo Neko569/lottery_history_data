@@ -148,6 +148,39 @@ const parseTicketsFromText = (text: string, rule: { frontCount: number; frontMax
   return { tickets, errors };
 };
 
+/** 计算从 n 中选 k 个的组合数 C(n, k) */
+const combinationCount = (n: number, k: number): number => {
+  if (n < k) return 0;
+  if (k === 0 || k === n) return 1;
+  let result = 1;
+  for (let i = 0; i < k; i++) {
+    result *= (n - i) / (i + 1);
+  }
+  return Math.round(result);
+};
+
+/** 枚举从 nums 中选 k 个的所有组合（保持原相对顺序），用于复式展开为单式子注 */
+const enumerateCombinations = (nums: string[], k: number): string[][] => {
+  if (k <= 0) return [[]];
+  if (k > nums.length) return [];
+  if (k === nums.length) return [nums.slice()];
+  const result: string[][] = [];
+  const combo: string[] = [];
+  const backtrack = (start: number) => {
+    if (combo.length === k) {
+      result.push(combo.slice());
+      return;
+    }
+    for (let i = start; i < nums.length; i++) {
+      combo.push(nums[i]);
+      backtrack(i + 1);
+      combo.pop();
+    }
+  };
+  backtrack(0);
+  return result;
+};
+
 export default function MatchResultPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -655,38 +688,6 @@ export default function MatchResultPage() {
     const frontCombos = combinationCount(ticket.front.length, rule.frontCount);
     const backCombos = combinationCount(ticket.back.length, rule.backCount);
     return frontCombos * backCombos;
-  };
-
-  const combinationCount = (n: number, k: number): number => {
-    if (n < k) return 0;
-    if (k === 0 || k === n) return 1;
-    let result = 1;
-    for (let i = 0; i < k; i++) {
-      result *= (n - i) / (i + 1);
-    }
-    return Math.round(result);
-  };
-
-  /** 枚举从 nums 中选 k 个的所有组合（保持原相对顺序），用于复式展开为单式子注 */
-  const enumerateCombinations = (nums: string[], k: number): string[][] => {
-    if (k <= 0) return [[]];
-    if (k > nums.length) return [];
-    if (k === nums.length) return [nums.slice()];
-    const result: string[][] = [];
-    const combo: string[] = [];
-    const backtrack = (start: number) => {
-      if (combo.length === k) {
-        result.push(combo.slice());
-        return;
-      }
-      for (let i = start; i < nums.length; i++) {
-        combo.push(nums[i]);
-        backtrack(i + 1);
-        combo.pop();
-      }
-    };
-    backtrack(0);
-    return result;
   };
 
   return (
