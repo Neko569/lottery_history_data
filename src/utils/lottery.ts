@@ -34,11 +34,15 @@ export interface LotteryPackagePart {
   count: number;
 }
 
-/** 套餐票（固定面值组合，如大乐透 18/28/58/88 元套餐） */
+/** 套餐票（固定面值组合，如大乐透 18/28/36/58/66/88 元套餐） */
 export interface LotteryPackage {
   id: string;
   name: string;
+  /** 基本投注单票金额（元） */
   price: number;
+  /** 追加投注单票金额（元，可选）。
+   *  套餐票自 2026-10-09 起支持追加投注，每注在基本投注基础上多投 1 元。 */
+  appendPrice?: number;
   parts: LotteryPackagePart[];
 }
 
@@ -151,19 +155,28 @@ const dltConfig: LotteryConfig = {
   logo: { topText: "超级", gradientFrom: "#E63946", gradientTo: "#9B2335", rangeColor: "#FFD700" },
   prizeColors: PRIZE_LEVEL_COLORS,
   packages: [
-    { id: "p18", name: "崭露头角", price: 18, parts: [
+    { id: "p18", name: "崭露头角", price: 18, appendPrice: 27, parts: [
       { kind: "single", front: 5, back: 2, count: 6 },
       { kind: "compound", front: 5, back: 3, count: 1 },
     ] },
-    { id: "p28", name: "鱼跃龙门", price: 28, parts: [
+    { id: "p28", name: "鱼跃龙门", price: 28, appendPrice: 42, parts: [
       { kind: "single", front: 5, back: 2, count: 8 },
       { kind: "compound", front: 6, back: 2, count: 1 },
     ] },
-    { id: "p58", name: "马到功成", price: 58, parts: [
+    { id: "p36", name: "套餐票", price: 36, appendPrice: 54, parts: [
+      { kind: "single", front: 5, back: 2, count: 8 },
+      { kind: "compound", front: 5, back: 5, count: 1 },
+    ] },
+    { id: "p58", name: "马到功成", price: 58, appendPrice: 87, parts: [
       { kind: "single", front: 5, back: 2, count: 8 },
       { kind: "compound", front: 7, back: 2, count: 1 },
     ] },
-    { id: "p88", name: "高飞远翔", price: 88, parts: [
+    { id: "p66", name: "套餐票", price: 66, appendPrice: 99, parts: [
+      { kind: "single", front: 5, back: 2, count: 5 },
+      { kind: "compound", front: 6, back: 3, count: 1 },
+      { kind: "compound", front: 5, back: 5, count: 1 },
+    ] },
+    { id: "p88", name: "高飞远翔", price: 88, appendPrice: 132, parts: [
       { kind: "single", front: 5, back: 2, count: 5 },
       { kind: "compound", front: 6, back: 3, count: 1 },
       { kind: "compound", front: 7, back: 2, count: 1 },
