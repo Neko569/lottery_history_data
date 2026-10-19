@@ -1088,7 +1088,7 @@ export default function MatchResultPage() {
                       <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">按套餐票生成</span>
                       <span className="text-[10px] text-zinc-500 dark:text-zinc-400">点击生成对应价位组合（替换当前选号）</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {PACKAGES.map((pkg) => (
                         <button
                           key={pkg.id}
@@ -1098,13 +1098,16 @@ export default function MatchResultPage() {
                         >
                           <span className="flex items-baseline gap-1">
                             <span className="text-sm font-bold text-gold">{pkg.price}元</span>
-                            <span className="text-xs text-zinc-300">{pkg.name}</span>
+                            {pkg.name && <span className="text-xs text-zinc-300">{pkg.name}</span>}
                           </span>
                           <span className="mt-0.5 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400">
                             {pkg.parts.map((p) =>
                               p.kind === "compound" ? `${p.front}+${p.back}复式` : `${p.count}注单式`
                             ).join(" · ")}
                           </span>
+                          {pkg.appendPrice && (
+                            <span className="mt-0.5 text-[10px] font-medium text-gold/80">追加 {pkg.appendPrice}元</span>
+                          )}
                         </button>
                       ))}
                     </div>
